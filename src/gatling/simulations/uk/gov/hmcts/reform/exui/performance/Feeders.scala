@@ -26,7 +26,7 @@ object Feeders {
   var orgName = ""
   var appReferenceName = ""
   var sequence1=0
-  var seq = 50
+  var seq = 1
 
   def nextSeq() : Integer = {
 
@@ -44,12 +44,12 @@ object Feeders {
   }
 
   def generateOrganisationName() :String = {
-    orgName = ("ccdorg-" + randomAlphanumericString(5))
+    orgName = ("pforgdiv-" + randomAlphanumericString(5))
     orgName
   }
 
   def generateEmailAddress() :String = {
-    generatedEmail = (generateOrganisationName() + "_superuser@mailtest.gov.uk")
+    generatedEmail = (generateOrganisationName() + "_superuser@mailinator.com")
     //print("generated enail"+generatedEmail)
     generatedEmail
   }
@@ -90,7 +90,7 @@ object Feeders {
 
 
   val createDynamicDataFeeder = Iterator.continually(Map("generatedEmail" -> ({
-    generateOrganisationName()+"_superuser@mailinator.com"
+    generateOrganisationName()+"-su@mailtest.gov.uk"
   }),
     "orgName" -> ({
     orgName
@@ -106,7 +106,7 @@ object Feeders {
   })));
 
   val createDynamicUserDataFeeder = Iterator.continually(Map("generatedUserEmail" -> ({
-    "_pt.user"+nextSeq()+"@mailinator.com"
+    "-user"
   })));
 
 
@@ -114,18 +114,12 @@ object Feeders {
     "IACC"
   }),
     "SignoutNumber" -> ({
-      "260"
+      "290"
     })
 
   ));
 
-  val FPLCreateDataFeeder = Iterator.continually(Map("service" -> ({
-    "FPLC"
-  }),
-    "SignoutNumber" -> ({
-      "380"
-    })
-  ));
+
 
   val IACViewDataFeeder = Iterator.continually(Map("service" -> ({
     "IACV"
@@ -135,33 +129,22 @@ object Feeders {
     })
   ));
 
-  val FPLViewDataFeeder = Iterator.continually(Map("service" -> ({
-    "FPLV"
-  }),
+
+
+
+
+
+
+  val CwDataFeeder = Iterator.continually(Map("service" -> ({
+    "CW"
+}),
     "SignoutNumber" -> ({
-      "070"
+      "60"
     })
   ));
 
-  val FPLSDODataFeeder = Iterator.continually(Map("service" -> ({
-    "SDO"
-  }),
-    "SignoutNumberAdmin" -> ({
-      "150"
-    }),
-    "SignoutNumberGK" -> ({
-      "290"
-    })
 
-  ));
 
-  val ProDataFeeder = Iterator.continually(Map("service" -> ({
-    "PROB"
-  }),
-    "SignoutNumber" -> ({
-      "120"
-    })
-  ));
 
 
 

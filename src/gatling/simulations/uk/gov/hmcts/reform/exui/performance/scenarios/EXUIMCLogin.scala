@@ -11,11 +11,28 @@ object EXUIMCLogin {
   //val BaseURL = Environment.baseURL
   val IdamUrl = Environment.idamURL
   val baseURL=Environment.baseURL
+  val manageOrgURL=Environment.manageOrdURL
+  val orgDomain=Environment.baseDomainOrg
+  val baseDomain=Environment.baseDomain
   //val loginFeeder = csv("OrgId.csv").circular
 
 
   val MinThinkTime = Environment.minThinkTime
   val MaxThinkTime = Environment.maxThinkTime
+
+  val headers_1 = Map(
+      "Pragma" -> "no-cache",
+      "Sec-Fetch-Dest" -> "empty",
+      "Sec-Fetch-Mode" -> "cors",
+      "Sec-Fetch-Site" -> "same-origin")
+
+  val headers_4 = Map(
+      "Accept" -> "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+      "Pragma" -> "no-cache",
+      "Sec-Fetch-Dest" -> "document",
+      "Sec-Fetch-Mode" -> "navigate",
+      "Sec-Fetch-Site" -> "same-origin",
+      "Upgrade-Insecure-Requests" -> "1")
 
   //====================================================================================
   //Business process : Access Home Page by hitting the URL and relavant sub requests
@@ -30,22 +47,68 @@ object EXUIMCLogin {
            .headers(LoginHeader.headers_0)
            .check(status.in(200,304))).exitHereIfFailed
 
-        .exec(http("XUI${service}_010_010_Homepage")
-              .get("/external/config/ui")
-          .headers(LoginHeader.headers_0)
-          .check(status.in(200,304)))
+      .exec(http("XUI${service}_010_010_HomepageConfigUI")
+            .get("/external/configuration-ui")
+            .headers(headers_1))
 
-      .exec(http("XUI${service}_010_015_HomepageTCEnabled")
+      .exec(http("XUI${service}_010_015_HomepageConfigJson")
+            .get("/assets/config/config.json")
+            .headers(headers_1))
+
+      .exec(http("XUI${service}_010_020_HomepageTCEnabled")
             .get("/api/configuration?configurationKey=termsAndConditionsEnabled")
-            .headers(LoginHeader.headers_hometc)
-            .check(status.is(200)))
+            .headers(headers_1))
 
-      .exec(http("XUI${service}_010_020_HompageLoginPage")
-            .get(IdamUrl + "/login?response_type=code&client_id=xuiwebapp&redirect_uri=" + baseURL + "/oauth2/callback&scope=profile%20openid%20roles%20manage-user%20create-user")
-            .headers(LoginHeader.headers_login)
-            .check(regex("Sign in"))
+      .exec(http("XUI${service}_010_025_HomepageIsAuthenticated")
+            .get("/auth/isAuthenticated")
+            .headers(headers_1))
+
+      .exec(http("XUI${service}_010_030_AuthLogin")
+            .get("/auth/login")
+            .headers(headers_4)
             .check(css("input[name='_csrf']", "value").saveAs("csrfToken"))
-            .check(status.is(200)))
+            .check(regex("manage-user%20create-user&state=(.*)&client").saveAs("state"))
+)
+    }
+
+    .pause( MinThinkTime, MaxThinkTime )
+
+
+  //====================================================================================
+  //Business process : Access Home Page by hitting the URL and relavant sub requests
+  //following is for manage org home page which is used for RJ
+  //=====================================================================================
+
+  val manageOrgHomePage =
+    tryMax(2) {
+
+      exec(http("XUI${service}_010_005_Homepage")
+           .get(manageOrgURL + "/")
+           .headers(LoginHeader.headers_0)
+           .check(status.in(200,304))).exitHereIfFailed
+
+      .exec(http("XUI${service}_010_010_HomepageConfigUI")
+            .get(manageOrgURL + "/external/configuration-ui")
+            .headers(headers_1))
+
+      .exec(http("XUI${service}_010_015_HomepageConfigJson")
+            .get(manageOrgURL + "/assets/config/config.json")
+            .headers(headers_1))
+
+      .exec(http("XUI${service}_010_020_HomepageTCEnabled")
+            .get(manageOrgURL + "/api/configuration?configurationKey=termsAndConditionsEnabled")
+            .headers(headers_1))
+
+      .exec(http("XUI${service}_010_025_HomepageIsAuthenticated")
+            .get(manageOrgURL + "/auth/isAuthenticated")
+            .headers(headers_1))
+
+      .exec(http("XUI${service}_010_030_AuthLogin")
+            .get(manageOrgURL + "/auth/login")
+            .headers(headers_4)
+            .check(css("input[name='_csrf']", "value").saveAs("csrfToken"))
+            .check(regex("manage-user%20create-user%20manage-roles&state=(.*)&client").saveAs("state"))
+      )
     }
 
     .pause( MinThinkTime, MaxThinkTime )
@@ -84,11 +147,82 @@ object EXUIMCLogin {
   //below requests are main login and relavant sub requests as part of the login submission
   //==================================================================================
 
+  val manageOrglogin =
+    tryMax(2) {
+
+      exec(http("XUI${service}_020_005_SignIn")
+           .post(IdamUrl + "/login?response_type=code&redirect_uri=https%3A%2F%2F"+orgDomain+"%2Foauth2%2Fcallback&scope=profile%20openid%20roles%20manage-user%20create-user%20manage-roles&state=${state}&client_id=xuimowebapp")
+           .formParam("username", "${respuser}")
+           .formParam("password", "Pass19word")
+           .formParam("save", "Sign in")
+           .formParam("selfRegistrationEnabled", "false")
+           .formParam("_csrf", "${csrfToken}")
+           .headers(LoginHeader.headers_login_submit)
+           .check(status.in(200, 304, 302))).exitHereIfFailed
+
+      //      .exec(getCookieValue(CookieKey("__userid__").withDomain("manage-case.perftest.platform.hmcts.net").saveAs("myUserId")))
+
+      .exec(http("XUI${service}_020_010_Homepage")
+            .get(manageOrgURL + "/external/config/ui")
+            .headers(LoginHeader.headers_0)
+            .check(status.in(200,304)))
+
+      /*.exec(http("XUI${service}_020_010_Homepage")
+            .get("/external/config/ui")
+            .headers(LoginHeader.headers_0)
+            .check(status.in(200,304)))*/
+
+      .exec(http("XUI${service}_020_015_SignInTCEnabled")
+            .get(manageOrgURL + "/api/configuration?configurationKey=termsAndConditionsEnabled")
+            .headers(LoginHeader.headers_38)
+            .check(status.in(200, 304)))
+
+      /* .exec(http("XUI${service}_020_020_SignInGetUserId")
+             .get("/api/userTermsAndConditions/${myUserId}")
+             .headers(LoginHeader.headers_tc))*/
+
+      /* .exec(http("XUI${service}_020_025_SignInAcceptTCGet")
+             .get("/accept-terms-and-conditions")
+             .headers(LoginHeader.headers_tc_get)
+             .check(status.in(200, 304)))*/
+
+      /* .exec(http("XUI${service}_020_030_SignInTCEnabled")
+             .get("/api/configuration?configurationKey=termsAndConditionsEnabled")
+             .headers(LoginHeader.headers_tc))*/
+
+      .repeat(1, "count") {
+        exec(http("XUI${service}_020_020_AcceptT&CAccessJurisdictions${count}")
+             .get(manageOrgURL + "/aggregated/caseworkers/:uid/jurisdictions?access=read")
+             .headers(LoginHeader.headers_access_read)
+             .check(status.in(200, 304, 302)))
+      }
+
+      .exec(http("XUI${service}_020_025_GetWorkBasketInputs")
+            .get(manageOrgURL + "/data/internal/case-types/FinancialRemedyMVP2/work-basket-inputs")
+            .headers(LoginHeader.headers_17))
+      .exec(getCookieValue(CookieKey("__auth__").withDomain(orgDomain).saveAs("authToken")))
+      .exec(getCookieValue(CookieKey("XSRF-TOKEN").withDomain(orgDomain).saveAs("XSRFToken")))
+
+      .exec(http("XUI${service}_020_030_GetPaginationMetaData")
+            .get(manageOrgURL + "/data/caseworkers/:uid/jurisdictions/DIVORCE/case-types/FinancialRemedyMVP2/cases/pagination_metadata?state=caseAdded")
+            .headers(LoginHeader.headers_0))
+
+      .exec(http("XUI${service}_020_035_GetDefaultWorkBasketView")
+            .get(manageOrgURL + "/aggregated/caseworkers/:uid/jurisdictions/DIVORCE/case-types/FinancialRemedyMVP2/cases?view=WORKBASKET&state=caseAdded&page=1")
+            .headers(LoginHeader.headers_0))
+
+
+    }
+
+    .pause(MinThinkTime , MaxThinkTime)
+
+
   val manageCaseslogin =
     tryMax(2) {
 
       exec(http("XUI${service}_020_005_SignIn")
-           .post(IdamUrl + "/login?response_type=code&client_id=xuiwebapp&redirect_uri=" + baseURL + "/oauth2/callback&scope=profile%20openid%20roles%20manage-user%20create-user")
+           //.post(IdamUrl + "/login?response_type=code&client_id=xuiwebapp&redirect_uri=" + baseURL + "/oauth2/callback&scope=profile%20openid%20roles%20manage-user%20create-user")
+           .post(IdamUrl + "/login?response_type=code&redirect_uri=" + baseURL + "%2Foauth2%2Fcallback&scope=profile%20openid%20roles%20manage-user%20create-user&state=${state}&client_id=xuiwebapp")
            .formParam("username", "${user}")
            .formParam("password", "Pass19word")
            .formParam("save", "Sign in")
@@ -97,36 +231,94 @@ object EXUIMCLogin {
            .headers(LoginHeader.headers_login_submit)
            .check(status.in(200, 304, 302))).exitHereIfFailed
 
-      .exec(getCookieValue(
-        CookieKey("__userid__").withDomain("manage-case.perftest.platform.hmcts.net").saveAs("myUserId")))
+      //      .exec(getCookieValue(CookieKey("__userid__").withDomain("manage-case.perftest.platform.hmcts.net").saveAs("myUserId")))
+
+      .exec(http("XUI${service}_020_010_configUI")
+            .get("/external/config/ui")
+            .headers(LoginHeader.headers_0)
+            .check(status.in(200,304)))
+
+      .exec(http("XUI${service}_020_015_Config")
+            .get("/assets/config/config.json")
+            .headers(LoginHeader.headers_0)
+            .check(status.in(200,304)))
+
+      .exec(http("XUI${service}_020_020_SignInTCEnabled")
+            .get("/api/configuration?configurationKey=termsAndConditionsEnabled")
+            .headers(LoginHeader.headers_38)
+            .check(status.in(200, 304)))
+
+        .exec(http("XUI${service}_020_025_SignInGetUserId")
+              .get("/api/user/details")
+              .headers(LoginHeader.headers_0))
+
+      /* .exec(http("XUI${service}_020_025_SignInAcceptTCGet")
+             .get("/accept-terms-and-conditions")
+             .headers(LoginHeader.headers_tc_get)
+             .check(status.in(200, 304)))*/
+
+      /* .exec(http("XUI${service}_020_030_SignInTCEnabled")
+             .get("/api/configuration?configurationKey=termsAndConditionsEnabled")
+             .headers(LoginHeader.headers_tc))*/
+
+      .repeat(1, "count") {
+        exec(http("XUI${service}_020_030_AcceptT&CAccessJurisdictions${count}")
+             .get("/aggregated/caseworkers/:uid/jurisdictions?access=read")
+             .headers(LoginHeader.headers_access_read)
+             .check(status.in(200, 304, 302)))
+      }
+
+      .exec(http("XUI${service}_020_035_GetWorkBasketInputs")
+            .get("/data/internal/case-types/FinancialRemedyMVP2/work-basket-inputs")
+            .headers(LoginHeader.headers_17))
+      .exec(getCookieValue(CookieKey("__auth__").withDomain(baseDomain).saveAs("authToken")))
+      /*.exec(getCookieValue(CookieKey("XSRF-TOKEN").withDomain("manage-case.perftest.platform.hmcts.net").saveAs("XSRFToken")))*/
+      /*.exec( session => {
+        println("the xsrf code is "+session("XSRFToken").as[String])
+        session
+      })*/
+
+      .exec(http("XUI${service}_020_040_GetPaginationMetaData")
+            .get("/data/caseworkers/:uid/jurisdictions/DIVORCE/case-types/FinancialRemedyMVP2/cases/pagination_metadata?state=caseAdded")
+            .headers(LoginHeader.headers_0))
+
+      .exec(http("XUI${service}_020_045_GetDefaultWorkBasketView")
+            .get("/aggregated/caseworkers/:uid/jurisdictions/DIVORCE/case-types/FinancialRemedyMVP2/cases?view=WORKBASKET&state=caseAdded&page=1")
+            .headers(LoginHeader.headers_0))
+      .exec(getCookieValue(CookieKey("XSRF-TOKEN").withDomain(baseDomain).saveAs("XSRFToken")))
+
+      /* .exec(http("XUI${service}_020_040_HomepageIsAuthenticated")
+               .get("/auth/isAuthenticated")
+               .headers(LoginHeader.headers_0))*/
+
+    }
+
+    .pause(MinThinkTime , MaxThinkTime)
+
+    val caseworkerLogin =
+    tryMax(2) {
+      exec(http("XUI${service}_020_005_SignIn")
+           //.post(IdamUrl + "/login?response_type=code&client_id=xuiwebapp&redirect_uri=" + baseURL + "/oauth2/callback&scope=profile%20openid%20roles%20manage-user%20create-user")
+           .post(IdamUrl + "/login?response_type=code&redirect_uri=" + baseURL + "%2Foauth2%2Fcallback&scope=profile%20openid%20roles%20manage-user%20create-user&state=${state}&client_id=xuiwebapp")
+           .formParam("username", "${user}")
+           .formParam("password", "Password12")
+           .formParam("save", "Sign in")
+           .formParam("selfRegistrationEnabled", "false")
+           .formParam("_csrf", "${csrfToken}")
+           .headers(LoginHeader.headers_login_submit)
+           .check(status.in(200, 304, 302))).exitHereIfFailed
+
+//      .exec(getCookieValue(CookieKey("__userid__").withDomain("manage-case.perftest.platform.hmcts.net").saveAs("myUserId")))
 
       .exec(http("XUI${service}_020_010_Homepage")
             .get("/external/config/ui")
             .headers(LoginHeader.headers_0)
             .check(status.in(200,304)))
 
-        /*.exec(http("XUI${service}_020_010_Homepage")
-              .get("/external/config/ui")
-              .headers(LoginHeader.headers_0)
-              .check(status.in(200,304)))*/
-
       .exec(http("XUI${service}_020_015_SignInTCEnabled")
             .get("/api/configuration?configurationKey=termsAndConditionsEnabled")
             .headers(LoginHeader.headers_38)
             .check(status.in(200, 304)))
-
-     /* .exec(http("XUI${service}_020_020_SignInGetUserId")
-            .get("/api/userTermsAndConditions/${myUserId}")
-            .headers(LoginHeader.headers_tc))*/
-
-     /* .exec(http("XUI${service}_020_025_SignInAcceptTCGet")
-            .get("/accept-terms-and-conditions")
-            .headers(LoginHeader.headers_tc_get)
-            .check(status.in(200, 304)))*/
-
-     /* .exec(http("XUI${service}_020_030_SignInTCEnabled")
-            .get("/api/configuration?configurationKey=termsAndConditionsEnabled")
-            .headers(LoginHeader.headers_tc))*/
 
       .repeat(1, "count") {
         exec(http("XUI${service}_020_020_AcceptT&CAccessJurisdictions${count}")
@@ -136,26 +328,20 @@ object EXUIMCLogin {
       }
 
         .exec(http("XUI${service}_020_025_GetWorkBasketInputs")
-              .get("/data/internal/case-types/CARE_SUPERVISION_EPO/work-basket-inputs")
+              .get("/data/internal/case-types/GrantOfRepresentation/work-basket-inputs")
               .headers(LoginHeader.headers_17))
 
         .exec(http("XUI${service}_020_030_GetPaginationMetaData")
-              .get("/data/caseworkers/:uid/jurisdictions/PUBLICLAW/case-types/CARE_SUPERVISION_EPO/cases/pagination_metadata?state=Open")
+              .get("/data/caseworkers/:uid/jurisdictions/PROBATE/case-types/GrantOfRepresentation/cases/pagination_metadata?state=Open")
               .headers(LoginHeader.headers_0))
 
         .exec(http("XUI${service}_020_035_GetDefaultWorkBasketView")
-              .get("/aggregated/caseworkers/:uid/jurisdictions/PUBLICLAW/case-types/CARE_SUPERVISION_EPO/cases?view=WORKBASKET&state=Open&page=1")
+              .get("/aggregated/caseworkers/:uid/jurisdictions/PROBATE/case-types/GrantOfRepresentation/cases?view=WORKBASKET&state=Open&page=1")
               .headers(LoginHeader.headers_0))
 
-
+      .exec(getCookieValue(CookieKey("XSRF-TOKEN").withDomain(baseURL).saveAs("xsrfToken")))
 
     }
-
-    .pause(MinThinkTime , MaxThinkTime)
-
-
-
-
 
   //======================================================================================
   //Business process : Click on Terms and Conditions
@@ -299,6 +485,14 @@ object EXUIMCLogin {
     tryMax(2) {
       exec(http("XUI${service}_${SignoutNumber}_SignOut")
            .get("/api/logout")
+           .headers(LoginHeader.headers_signout)
+           .check(status.in(200, 304, 302)))
+    }
+
+  val manageOrg_Logout =
+    tryMax(2) {
+      exec(http("XUI${service}_${SignoutNumber}_SignOut")
+           .get(manageOrgURL + "/api/logout")
            .headers(LoginHeader.headers_signout)
            .check(status.in(200, 304, 302)))
     }

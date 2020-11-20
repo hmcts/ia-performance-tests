@@ -93,7 +93,7 @@ object LoginHeader {
   "sec-fetch-mode" -> "cors",
   "sec-fetch-site" -> "same-origin",
   "x-dtpc" -> "3$38734236_77h15vDTRMSASFKPLKDRFKMHCCHMMCARPGMHGD-0",
-  "x-dtreferer" -> "https://manage-case.perftest.platform.hmcts.net/accept-terms-and-conditions")
+  "x-dtreferer" ->  ({baseURL+"/accept-terms-and-conditions"}))
 
  val headers_17 = Map(
   "Accept" -> "application/vnd.uk.gov.hmcts.ccd-data-store-api.ui-workbasket-input-details.v2+json;charset=UTF-8",
