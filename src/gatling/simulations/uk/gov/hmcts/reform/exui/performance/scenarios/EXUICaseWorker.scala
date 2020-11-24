@@ -19,7 +19,7 @@ object EXUICaseWorker {
         .post("/data/internal/searchCases?ctid=${caseType}&use_case=SEARCH&view=SEARCH&page=1").headers(CaseworkerHeader.headers_2)
         .header("X-XSRF-TOKEN", "${xsrfToken}")
         .body(StringBody("{\n  \"size\": 25\n}"))
-        .check(jsonPath("$..case_id").findAll.optional.saveAs("caseNumber")))
+        .check(jsonPath("$..case_id").find(0).optional.saveAs("caseNumber")))
       .pause(MinThinkTime, MaxThinkTime)
 
   val ViewCase = doIf(session => session.contains("caseNumber")) {
