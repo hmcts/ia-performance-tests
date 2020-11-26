@@ -458,7 +458,7 @@ object IACHeader {
   "sec-fetch-mode" -> "cors",
   "sec-fetch-site" -> "same-origin",
   "x-dtpc" -> "3$54833124_131h15vATDARLUPBSPUDUSAPAWSHOBJTNRRCQHS-0",
-  "x-dtreferer" -> "https://manage-case.perftest.platform.hmcts.net/cases/case-details/${caseId}/trigger/submitAppeal/submitAppealdeclaration")
+  "x-dtreferer" -> "https://manage-case.aat.platform.hmcts.net/cases/case-details/${caseId}/trigger/submitAppeal/submitAppealdeclaration")
 
  val headers_data_internal_rep = Map(
   "accept" -> "application/vnd.uk.gov.hmcts.ccd-data-store-api.ui-user-profile.v2+json;charset=UTF-8",
@@ -470,7 +470,7 @@ object IACHeader {
   "sec-fetch-mode" -> "cors",
   "sec-fetch-site" -> "same-origin",
   "x-dtpc" -> "3$54110241_838h36vATDARLUPBSPUDUSAPAWSHOBJTNRRCQHS-0",
-  "x-dtreferer" -> "https://manage-case.perftest.platform.hmcts.net/cases/case-create/IA/Asylum/startAppeal/startAppeallegalRepresentativeDetails")
+  "x-dtreferer" -> "https://manage-case.aat.platform.hmcts.net/cases/case-create/IA/Asylum/startAppeal/startAppeallegalRepresentativeDetails")
 
  val headers_data_internal_cases = Map(
   "accept" -> "application/vnd.uk.gov.hmcts.ccd-data-store-api.ui-case-view.v2+json",

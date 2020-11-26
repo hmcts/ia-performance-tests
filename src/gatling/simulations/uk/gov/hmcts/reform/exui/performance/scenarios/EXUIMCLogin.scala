@@ -67,7 +67,9 @@ object EXUIMCLogin {
             .get("/auth/login")
             .headers(headers_4)
             .check(css("input[name='_csrf']", "value").saveAs("csrfToken"))
-            .check(regex("manage-user%20create-user&state=(.*)&client").saveAs("state"))
+            //.check(regex("manage-user%20create-user&state=(.*)&client").saveAs("state"))
+            .check(regex("oauth2/callback&state=(.*)&nonce").saveAs("state"))
+            .check(regex("&nonce=(.*)&response_type").saveAs("nonce"))
 )
     }
 
@@ -222,7 +224,8 @@ object EXUIMCLogin {
 
       exec(http("XUI${service}_020_005_SignIn")
            //.post(IdamUrl + "/login?response_type=code&client_id=xuiwebapp&redirect_uri=" + baseURL + "/oauth2/callback&scope=profile%20openid%20roles%20manage-user%20create-user")
-           .post(IdamUrl + "/login?response_type=code&redirect_uri=" + baseURL + "%2Foauth2%2Fcallback&scope=profile%20openid%20roles%20manage-user%20create-user&state=${state}&client_id=xuiwebapp")
+           //.post(IdamUrl + "/login?response_type=code&redirect_uri=" + baseURL + "%2Foauth2%2Fcallback&scope=profile%20openid%20roles%20manage-user%20create-user&state=${state}&client_id=xuiwebapp")
+           .post("https://idam-web-public.aat.platform.hmcts.net/login?client_id=xuiwebapp&redirect_uri=https://manage-case.aat.platform.hmcts.net/oauth2/callback&state=${state}&nonce=${nonce}&response_type=code&scope=profile%20openid%20roles%20manage-user%20create-user&prompt=")
            .formParam("username", "${user}")
            .formParam("password", "Pass19word")
            .formParam("save", "Sign in")
@@ -271,7 +274,7 @@ object EXUIMCLogin {
       .exec(http("XUI${service}_020_035_GetWorkBasketInputs")
             .get("/data/internal/case-types/FinancialRemedyMVP2/work-basket-inputs")
             .headers(LoginHeader.headers_17))
-      .exec(getCookieValue(CookieKey("__auth__").withDomain(baseDomain).saveAs("authToken")))
+      //.exec(getCookieValue(CookieKey("__auth__").withDomain(baseDomain).saveAs("authToken")))
       /*.exec(getCookieValue(CookieKey("XSRF-TOKEN").withDomain("manage-case.perftest.platform.hmcts.net").saveAs("XSRFToken")))*/
       /*.exec( session => {
         println("the xsrf code is "+session("XSRFToken").as[String])
@@ -299,9 +302,10 @@ object EXUIMCLogin {
     tryMax(2) {
       exec(http("XUI${service}_020_005_SignIn")
            //.post(IdamUrl + "/login?response_type=code&client_id=xuiwebapp&redirect_uri=" + baseURL + "/oauth2/callback&scope=profile%20openid%20roles%20manage-user%20create-user")
-           .post(IdamUrl + "/login?response_type=code&redirect_uri=" + baseURL + "%2Foauth2%2Fcallback&scope=profile%20openid%20roles%20manage-user%20create-user&state=${state}&client_id=xuiwebapp")
+           //.post(IdamUrl + "/login?response_type=code&redirect_uri=" + baseURL + "%2Foauth2%2Fcallback&scope=profile%20openid%20roles%20manage-user%20create-user&state=${state}&client_id=xuiwebapp")
+           .post("https://idam-web-public.aat.platform.hmcts.net/login?client_id=xuiwebapp&redirect_uri=https://manage-case.aat.platform.hmcts.net/oauth2/callback&state=${state}&nonce=${nonce}&response_type=code&scope=profile%20openid%20roles%20manage-user%20create-user&prompt=")
            .formParam("username", "${user}")
-           .formParam("password", "Password12")
+           .formParam("password", "Pass19word")
            .formParam("save", "Sign in")
            .formParam("selfRegistrationEnabled", "false")
            .formParam("_csrf", "${csrfToken}")
@@ -339,7 +343,7 @@ object EXUIMCLogin {
               .get("/aggregated/caseworkers/:uid/jurisdictions/PROBATE/case-types/GrantOfRepresentation/cases?view=WORKBASKET&state=Open&page=1")
               .headers(LoginHeader.headers_0))
 
-      .exec(getCookieValue(CookieKey("XSRF-TOKEN").withDomain(baseURL).saveAs("xsrfToken")))
+      .exec(getCookieValue(CookieKey("XSRF-TOKEN").withDomain(baseDomain).saveAs("xsrfToken")))
 
     }
 

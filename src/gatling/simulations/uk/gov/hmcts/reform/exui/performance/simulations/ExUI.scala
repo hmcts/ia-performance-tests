@@ -10,7 +10,7 @@ class ExUI extends Simulation {
 
 	val BaseURL = Environment.baseURL
 	val orgurl=Environment.manageOrdURL
-	val feedUserDataIACView = csv("IACDataView.csv").circular
+	//val feedUserDataIACView = csv("IACDataView.csv").circular
 	val feedUserDataIACCreate = csv("IACDataCreate.csv").circular
 	val feedUserDataCaseworker = csv("Caseworkers.csv").circular
 
@@ -33,18 +33,21 @@ class ExUI extends Simulation {
 	val EXUIScn = scenario("EXUI").repeat(1)
 	 {
 		exec(
-		/*S2SHelper.S2SAuthToken,
-		ExUI.createSuperUser,
+		//S2SHelper.S2SAuthToken,
+			//Create organisation
+		/*ExUI.createSuperUser,
 		ExUI.createOrg,
       ExUI.approveOrgHomePage,
 		ExUI.approveOrganisationlogin,
 			ExUI.approveOrganisationApprove,
-			ExUI.approveOrganisationLogout*/
+			ExUI.approveOrganisationLogout,*/
+			//Invite users
 			ExUI.manageOrgHomePage,
 			ExUI.manageOrganisationLogin,
+			//ExUI.manageOrgTC,
 			ExUI.usersPage,
 			ExUI.inviteUserPage
-			.repeat(4,"n") {
+			.repeat(5,"n") {
 				exec(ExUI.sendInvitation)
 				},
 			ExUI.manageOrganisationLogout
@@ -60,7 +63,7 @@ class ExUI extends Simulation {
 	  	.exec(EXUIMCLogin.manageCasesHomePage)
 			.exec(EXUIMCLogin.manageCaseslogin)
 		//	.exec(EXUIMCLogin.termsnconditions)
-		  	.repeat(1) {
+		  	.repeat(2) {
 					exec(EXUIIACMC.iaccasecreation)
 						.exec(EXUIIACMC.shareacase)
 				}
@@ -69,7 +72,7 @@ class ExUI extends Simulation {
 	}
 
 
-	val EXUIMCaseViewIACScn = scenario("***** IAC View Case *****").repeat(1)
+	/*val EXUIMCaseViewIACScn = scenario("***** IAC View Case *****").repeat(1)
 	{
 		feed(feedUserDataIACView).feed(Feeders.IACViewDataFeeder)
 			.exec(EXUIMCLogin.manageCasesHomePage)
@@ -77,7 +80,7 @@ class ExUI extends Simulation {
 			//.exec(EXUIMCLogin.termsnconditions)
 			.exec(EXUIIACMC.findandviewcase)
 			.exec(EXUIMCLogin.manageCase_Logout)
-	}
+	}*/
 
 
 	val EXUIMCaseCaseworkerScn = scenario("***** Caseworker Journey ******").repeat(1)
@@ -94,8 +97,12 @@ class ExUI extends Simulation {
 
 
 	setUp(
-		EXUIMCaseCaseworkerScn.inject(nothingFor(5),rampUsers(10) during (300)),
-		EXUIMCaseCreationIACScn.inject(nothingFor(15),rampUsers(1) during (300)),
-		EXUIMCaseViewIACScn.inject(nothingFor(25),rampUsers(1) during (3))
+		EXUIMCaseCaseworkerScn.inject(nothingFor(5),rampUsers(1) during (1)),
+		EXUIMCaseCreationIACScn.inject(nothingFor(15),rampUsers(1) during (1))
+		//EXUIMCaseViewIACScn.inject(nothingFor(25),rampUsers(1) during (3))
 	).protocols(IAChttpProtocol)
+
+	/*setUp(
+		EXUIScn.inject(rampUsers(1) during (10))
+	).protocols(XUIHttpProtocol)*/
 }

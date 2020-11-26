@@ -15,7 +15,7 @@ object LoginHeader {
 
  val headers_tc = Map(
   "Content-Type" -> "application/json",
-  "Origin" -> "https://manage-case.perftest.platform.hmcts.net",
+  "Origin" -> "https://manage-case.aat.platform.hmcts.net",
   "Sec-Fetch-Dest" -> "empty",
   "Sec-Fetch-Mode" -> "cors",
   "Sec-Fetch-Site" -> "same-origin")

@@ -57,7 +57,13 @@ object EXUIIACMC {
         .get("/data/internal/case-types/Asylum/event-triggers/startAppeal?ignore-warning=false")
         .headers(IACHeader.headers_startcreatecase)
         .check(status.is(200))
-        .check(jsonPath("$.event_token").optional.saveAs("event_token")))
+        .check(bodyString.saveAs("BODY7"))
+        .check(jsonPath("$..event_token").optional.saveAs("event_token")))
+      .exec{
+        session =>
+          println("This is the response body of StartCreateCase1:" + session("BODY7").as[String])
+          session
+      }
 
       .exec(http("XUI${service}_050_010_StartCreateCase2")
       .get("/data/internal/case-types/Asylum/event-triggers/startAppeal?ignore-warning=false")

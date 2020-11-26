@@ -37,7 +37,7 @@ object EXUICaseWorker {
 
         .exec(http("XUI${service}_040_015_GetPaymentGroups")
           .get("/payments/cases/${caseNumber}/paymentgroups")
-          .headers(CaseworkerHeader.headers_search).check(status.in(200,404)))
+          .headers(CaseworkerHeader.headers_search).check(status.in(200, 403, 404)))
         .pause(MinThinkTime, MaxThinkTime)
 
       //TO DO - put this in a do-if statement, so only do these steps if document_ID is found
