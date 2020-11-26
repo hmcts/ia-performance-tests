@@ -1,5 +1,5 @@
 plugins {
-    id 'org.owasp.dependencycheck' version '6.0.2'
+    //id 'org.owasp.dependencycheck' version '6.0.2'
     id 'scala'
     id 'com.github.lkishalmi.gatling' version '3.0.2'
     id 'java-gradle-plugin'
@@ -40,7 +40,7 @@ repositories {
 
 dependencies {
     //compile 'org.scala-lang:scala-library:2.12.8'
-    //gatlingCompile 'com.warrenstrange:googleauth:1.1.5'
+    gatlingCompile 'com.warrenstrange:googleauth:1.1.5'
     //compile group: 'io.gatling', name: 'gatling-app', version: '3.1.1'
     //compile group: 'io.gatling', name: 'gatling-recorder', version: '3.1.1'
     //compile group: 'io.gatling.highcharts', name: 'gatling-charts-highcharts', version: '3.1.1'
