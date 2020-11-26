@@ -19,11 +19,10 @@ object EXUICaseWorker {
         .post("/data/internal/searchCases?ctid=${caseType}&use_case=SEARCH&view=SEARCH&page=1").headers(CaseworkerHeader.headers_2)
         .header("X-XSRF-TOKEN", "${xsrfToken}")
         .body(StringBody("{\n  \"size\": 25\n}"))
-        .check(jsonPath("$..case_id").findAll.optional.saveAs("caseNumbers")))
+        .check(jsonPath("$..case_id").find(0).optional.saveAs("caseNumber")))
       .pause(MinThinkTime, MaxThinkTime)
 
-  val ViewCase = doIf(session => session.contains("caseNumbers")) {
-    foreach("${caseNumbers}", "caseNumber") {
+  val ViewCase = doIf(session => session.contains("caseNumber")) {
       exec(http("XUI${service}_040_005_ViewCase")
         .get("/data/internal/cases/${caseNumber}")
         .headers(CaseworkerHeader.headers_5)
@@ -66,8 +65,7 @@ object EXUICaseWorker {
           .pause(MinThinkTime, MaxThinkTime)
 
         //Simulate clicking on Case List
-      }
-
+    
     }
   }
 }
