@@ -96,8 +96,6 @@ class ExUI extends Simulation {
 			}
 		.exec(EXUIMCLogin.manageCase_Logout)
   }
-
-
 	setUp(
 		EXUIMCaseCaseworkerScn.inject(nothingFor(5),rampUsers(1) during (1)),
 		EXUIMCaseCreationIACScn.inject(nothingFor(15),rampUsers(1) during (1))
