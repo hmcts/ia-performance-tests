@@ -8,7 +8,7 @@ object EXUICaseWorker {
 
   val IdamUrl = Environment.idamURL
   val baseURL = Environment.baseURL
-  val caseFeeder = csv("CaseworkerSearches.csv").random
+  val caseFeeder = csv("CaseworkerSearches.csv").circular
 
   val MinThinkTime = Environment.minThinkTimeCW
   val MaxThinkTime = Environment.maxThinkTimeCW
@@ -27,14 +27,14 @@ object EXUICaseWorker {
          .post("/data/internal/searchCases?ctid=${caseType}&use_case=WORKBASKET&view=WORKBASKET&page=1")
          .headers(CaseworkerHeader.headers_sort)
          .header("X-XSRF-TOKEN", "${xsrfToken}")
-         .body(StringBody("{\n  \"sort\": {\n    \"column\": \"[CASE_REFERENCE]\",\n    \"order\": 1,\n    \"type\": \"Number\"\n  },\n  \"size\": 25\n}"))
+         .body(StringBody("{\n  \"sort\": {\n    \"column\": \"appealReferenceNumber\",\n    \"order\": 1,\n    \"type\": \"Text\"\n  },\n  \"size\": 25\n}"))
          .check(status.is(200)))
     .pause(10)
     .exec(http("XUI${service}_040_010_ApplySortFirstName")
           .post("/data/internal/searchCases?ctid=${caseType}&use_case=WORKBASKET&view=WORKBASKET&page=1")
           .headers(CaseworkerHeader.headers_sort)
           .header("X-XSRF-TOKEN", "${xsrfToken}")
-          .body(StringBody("{\n  \"sort\": {\n    \"column\": \"D8PetitionerFirstName\",\n    \"order\": 1,\n    \"type\": \"Text\"\n  },\n  \"size\": 25\n}"))
+          .body(StringBody("{\n  \"sort\": {\n    \"column\": \"appellantNameForDisplay\",\n    \"order\": 1,\n    \"type\": \"Text\"\n  },\n  \"size\": 25\n}"))
           .check(status.is(200)))
     .pause(10)
 
