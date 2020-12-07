@@ -101,6 +101,7 @@ class ExUI extends Simulation {
 	EXUIMCaseCreationIACScn.inject(nothingFor(15),rampUsers(1) during (1))
 		//EXUIMCaseViewIACScn.inject(nothingFor(25),rampUsers(1) during (3))
 	).protocols(IAChttpProtocol)
+	 .assertions(global.successfulRequests.percent.is(100))
 
 	/*setUp(
 		EXUIScn.inject(rampUsers(1) during (10))
