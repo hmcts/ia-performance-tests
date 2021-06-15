@@ -23,7 +23,7 @@ class ExUI extends Simulation {
 
 
   val IAChttpProtocol = Environment.HttpProtocol
-		.proxy(Proxy("proxyout.reform.hmcts.net", 8080).httpsPort(8080))
+		//.proxy(Proxy("proxyout.reform.hmcts.net", 8080).httpsPort(8080))
 		.baseUrl(BaseURL)
 		//.baseUrl("https://xui-webapp-perftest.service.core-compute-perftest.internal")
 		//.baseUrl("https://ccd-case-management-web-perftest.service.core-compute-perftest.internal")
