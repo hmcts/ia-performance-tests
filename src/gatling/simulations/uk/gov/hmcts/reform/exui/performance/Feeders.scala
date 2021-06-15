@@ -106,7 +106,7 @@ object Feeders {
   })));
 
   val createDynamicUserDataFeeder = Iterator.continually(Map("generatedUserEmail" -> ({
-    "-user"
+    "-newuser"
   })));
 
 

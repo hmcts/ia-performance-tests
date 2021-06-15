@@ -16,8 +16,6 @@ object ExUI {
    //val BaseURL = Environment.baseURL
   val prdUrl=Environment.PRDUrl
   val IdamUrl = Environment.idamURL
-  val approveUser=Environment.adminUserAO
-  val approveUserPassword=Environment.adminPasswordAO
   val url_approve=Environment.url_approve
   val url_mo = Environment.manageOrdURL
   val baseDomainOrg = Environment.baseDomainOrg
@@ -142,8 +140,8 @@ object ExUI {
     exec(http("EXUI_AO_005_Login")
       .post(IdamUrl + "/login?client_id=xuiaowebapp&redirect_uri="+url_approve+"/oauth2/callback&state=${state}&nonce=${nonce}&response_type=code&scope=profile%20openid%20roles%20manage-user%20create-user&prompt=")
       .headers(headers_login)
-      .formParam("username", approveUser)
-      .formParam("password", approveUserPassword)
+      .formParam("username", "${admin_username}")
+      .formParam("password", "${admin_password}")
       .formParam("save", "Sign in")
       .formParam("selfRegistrationEnabled", "false")
       .formParam("_csrf", "${csrfToken}")

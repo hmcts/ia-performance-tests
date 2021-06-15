@@ -64,6 +64,19 @@ object IACHeader {
   "x-dtpc" -> "1$579436139_19h15vMEARIAIGLUFFNPCKRPQRQVUGOPAKMIJN-0e12",
   "x-xsrf-token" -> "${XSRFToken}")
 
+ val headers_document = Map(
+  "accept" -> "application/json, text/plain, */*",
+  "accept-encoding" -> "gzip, deflate, br",
+  "accept-language" -> "en-GB,en-US;q=0.9,en;q=0.8",
+  "content-type" -> "multipart/form-data; boundary=----WebKitFormBoundary5ej2FTA5zaPBj6Yn",
+  "origin" -> baseURL,
+  "sec-ch-ua" -> """Chromium";v="88", "Google Chrome";v="88", ";Not A Brand";v="99""",
+  "sec-ch-ua-mobile" -> "?0",
+  "sec-fetch-dest" -> "empty",
+  "sec-fetch-mode" -> "cors",
+  "sec-fetch-site" -> "same-origin",
+  "x-xsrf-token" -> "${XSRFToken}")
+
  val headers_uploadnotice = Map(
   "accept" -> "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8",
   "accept-encoding" -> "gzip, deflate, br",
@@ -154,7 +167,7 @@ object IACHeader {
   "x-dtpc" -> "1$579436139_19h29vMEARIAIGLUFFNPCKRPQRQVUGOPAKMIJN-0e19",
   "x-xsrf-token" -> "${XSRFToken}")
 
- val headers_humanrights = Map(
+ val headers_eurefusal = Map(
   "accept" -> "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8",
   "accept-encoding" -> "gzip, deflate, br",
   "accept-language" -> "en-US,en;q=0.9",
@@ -544,8 +557,89 @@ object IACHeader {
   "x-dtpc" -> "3$54833124_131h37vATDARLUPBSPUDUSAPAWSHOBJTNRRCQHS-0",
   "x-dtreferer" -> ({baseURL+"/cases/case-details/${caseId}/trigger/shareACase/shareACaseshareACase"}))
 
+ val sharecase_headers_9 = Map(
+  "accept" -> "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+  "accept-encoding" -> "gzip, deflate, br",
+  "accept-language" -> "en-GB,en-US;q=0.9,en;q=0.8",
+  "sec-ch-ua" -> """Chromium";v="88", "Google Chrome";v="88", ";Not A Brand";v="99""",
+  "sec-ch-ua-mobile" -> "?0",
+  "sec-fetch-dest" -> "document",
+  "sec-fetch-mode" -> "navigate",
+  "sec-fetch-site" -> "same-origin",
+  "sec-fetch-user" -> "?1",
+  "upgrade-insecure-requests" -> "1")
 
+ val sharecase_headers_28 = Map(
+  "accept" -> "application/json, text/plain, */*",
+  "accept-encoding" -> "gzip, deflate, br",
+  "accept-language" -> "en-GB,en-US;q=0.9,en;q=0.8",
+  "sec-ch-ua" -> """Chromium";v="88", "Google Chrome";v="88", ";Not A Brand";v="99""",
+  "sec-ch-ua-mobile" -> "?0",
+  "sec-fetch-dest" -> "empty",
+  "sec-fetch-mode" -> "cors",
+  "sec-fetch-site" -> "same-origin")
 
+ val sharecase_headers_50 = Map(
+  "accept" -> "application/json",
+  "accept-encoding" -> "gzip, deflate, br",
+  "accept-language" -> "en-GB,en-US;q=0.9,en;q=0.8",
+  "content-type" -> "application/json",
+  "sec-ch-ua" -> """Chromium";v="88", "Google Chrome";v="88", ";Not A Brand";v="99""",
+  "sec-ch-ua-mobile" -> "?0",
+  "sec-fetch-dest" -> "empty",
+  "sec-fetch-mode" -> "cors",
+  "sec-fetch-site" -> "same-origin")
+
+ val sharecase_headers_52 = Map(
+  "accept" -> "application/vnd.uk.gov.hmcts.ccd-data-store-api.ui-workbasket-input-details.v2+json;charset=UTF-8",
+  "accept-encoding" -> "gzip, deflate, br",
+  "accept-language" -> "en-GB,en-US;q=0.9,en;q=0.8",
+  "content-type" -> "application/json",
+  "experimental" -> "true",
+  "sec-ch-ua" -> """Chromium";v="88", "Google Chrome";v="88", ";Not A Brand";v="99""",
+  "sec-ch-ua-mobile" -> "?0",
+  "sec-fetch-dest" -> "empty",
+  "sec-fetch-mode" -> "cors",
+  "sec-fetch-site" -> "same-origin")
+
+ val sharecase_headers_57 = Map(
+  "accept" -> "application/json",
+  "accept-encoding" -> "gzip, deflate, br",
+  "accept-language" -> "en-GB,en-US;q=0.9,en;q=0.8",
+  "content-type" -> "application/json",
+  "origin" -> baseURL,
+  "sec-ch-ua" -> """Chromium";v="88", "Google Chrome";v="88", ";Not A Brand";v="99""",
+  "sec-ch-ua-mobile" -> "?0",
+  "sec-fetch-dest" -> "empty",
+  "sec-fetch-mode" -> "cors",
+  "sec-fetch-site" -> "same-origin",
+  "x-xsrf-token" -> "${XSRFToken}")
+
+ val sharecase_headers_115 = Map(
+  "accept" -> "application/json",
+  "accept-encoding" -> "gzip, deflate, br",
+  "accept-language" -> "en-GB,en-US;q=0.9,en;q=0.8",
+  "content-type" -> "application/json",
+  "origin" -> baseURL,
+  "sec-ch-ua" -> """Chromium";v="88", "Google Chrome";v="88", ";Not A Brand";v="99""",
+  "sec-ch-ua-mobile" -> "?0",
+  "sec-fetch-dest" -> "empty",
+  "sec-fetch-mode" -> "cors",
+  "sec-fetch-site" -> "same-origin",
+  "x-xsrf-token" -> "${XSRFToken}")
+
+ val sharecase_headers_227 = Map(
+  "accept" -> "application/json, text/plain, */*",
+  "accept-encoding" -> "gzip, deflate, br",
+  "accept-language" -> "en-GB,en-US;q=0.9,en;q=0.8",
+  "content-type" -> "application/json",
+  "origin" -> baseURL,
+  "sec-ch-ua" -> """Chromium";v="88", "Google Chrome";v="88", ";Not A Brand";v="99""",
+  "sec-ch-ua-mobile" -> "?0",
+  "sec-fetch-dest" -> "empty",
+  "sec-fetch-mode" -> "cors",
+  "sec-fetch-site" -> "same-origin",
+  "x-xsrf-token" -> "${XSRFToken}")
 
 
 

@@ -11,11 +11,12 @@ class ExUI extends Simulation {
 	val BaseURL = Environment.baseURL
 	val orgurl=Environment.manageOrdURL
 	//val feedUserDataIACView = csv("IACDataView.csv").circular
-	val feedUserDataIACCreate = csv("IACDataCreate.csv").circular
+	val feedUserDataIAC = csv("IACUserData.csv").circular
 	val feedUserDataCaseworker = csv("Caseworkers.csv").circular
+	val feedAdminUser = csv("AdminUsers.csv").circular
 
-  val XUIHttpProtocol = Environment.HttpProtocol
-    .proxy(Proxy("proxyout.reform.hmcts.net", 8080).httpsPort(8080))
+	val XUIHttpProtocol = Environment.HttpProtocol
+    //.proxy(Proxy("proxyout.reform.hmcts.net", 8080).httpsPort(8080))
     .baseUrl(orgurl)
     //.baseUrl("https://ccd-case-management-web-perftest.service.core-compute-perftest.internal")
     .headers(Environment.commonHeader)
@@ -32,25 +33,26 @@ class ExUI extends Simulation {
 
 	val EXUIScn = scenario("EXUI").repeat(1)
 	 {
-		exec(
+		 feed(feedAdminUser)
+		.exec(
 		//S2SHelper.S2SAuthToken,
 			//Create organisation
-		/*ExUI.createSuperUser,
+		ExUI.createSuperUser,
 		ExUI.createOrg,
       ExUI.approveOrgHomePage,
 		ExUI.approveOrganisationlogin,
 			ExUI.approveOrganisationApprove,
-			ExUI.approveOrganisationLogout,*/
+			ExUI.approveOrganisationLogout,
 			//Invite users
-			ExUI.manageOrgHomePage,
+			/*ExUI.manageOrgHomePage,
 			ExUI.manageOrganisationLogin,
 			//ExUI.manageOrgTC,
 			ExUI.usersPage,
 			ExUI.inviteUserPage
-			.repeat(5,"n") {
+			.repeat(10,"n") {
 				exec(ExUI.sendInvitation)
 				},
-			ExUI.manageOrganisationLogout
+			ExUI.manageOrganisationLogout*/
 			)
 	 }
 
@@ -59,13 +61,13 @@ class ExUI extends Simulation {
 
 	val EXUIMCaseCreationIACScn = scenario("***** IAC Create Case *****").repeat(1)
 	{
-	  	feed(feedUserDataIACCreate).feed(Feeders.IACCreateDataFeeder)
+	  	feed(feedUserDataIAC).feed(Feeders.IACCreateDataFeeder)
 	  	.exec(EXUIMCLogin.manageCasesHomePage)
 			.exec(EXUIMCLogin.manageCaseslogin)
 		//	.exec(EXUIMCLogin.termsnconditions)
-		  	.repeat(2) {
+		  	.repeat(1) {
 					exec(EXUIIACMC.iaccasecreation)
-						.exec(EXUIIACMC.shareacase)
+						.exec(EXUIIACMC.sharecase)
 				}
 
 		.exec(EXUIMCLogin.manageCase_Logout)
@@ -97,10 +99,11 @@ class ExUI extends Simulation {
 
 
 	setUp(
-		EXUIMCaseCaseworkerScn.inject(nothingFor(5),rampUsers(1) during (1)),
-		EXUIMCaseCreationIACScn.inject(nothingFor(15),rampUsers(1) during (1))
-		//EXUIMCaseViewIACScn.inject(nothingFor(25),rampUsers(1) during (3))
+		EXUIMCaseCaseworkerScn.inject(rampUsers(10) during (300)),
+		EXUIMCaseCreationIACScn.inject(rampUsers(10) during (300))
 	).protocols(IAChttpProtocol)
+	 .assertions(global.successfulRequests.percent.gte(95))
+	 .assertions(forAll.successfulRequests.percent.gte(90))
 
 	/*setUp(
 		EXUIScn.inject(rampUsers(1) during (10))

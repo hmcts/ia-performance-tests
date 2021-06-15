@@ -2,28 +2,22 @@ package uk.gov.hmcts.reform.exui.performance.scenarios
 
 import java.text.SimpleDateFormat
 import java.util.Date
-
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
-import uk.gov.hmcts.reform.exui.performance.scenarios.utils.{Environment, IACHeader}
-import uk.gov.service.notify.NotificationClient
+import uk.gov.hmcts.reform.exui.performance.scenarios.utils._
+import uk.gov.hmcts.reform.exui.performance.scenarios.utils.IACHeader._
 
 import scala.util.Random
 
 object EXUIIACMC {
 
-  //val BaseURL = Environment.baseURL
   val IdamUrl = Environment.idamURL
   val baseURL=Environment.baseURL
-  //val loginFeeder = csv("OrgId.csv").circular
-//  val feedUserDataIAC = csv("IACDataBackground.csv").circular
 
   val MinThinkTime = Environment.minThinkTimeIACC
   val MaxThinkTime = Environment.maxThinkTimeIACC
   val MinThinkTimeIACV = Environment.minThinkTimeIACV
   val MaxThinkTimeIACV = Environment.maxThinkTimeIACV
-
-  //headers
 
   private val rng: Random = new Random()
   private def firstName(): String = rng.alphanumeric.take(10).mkString
@@ -83,7 +77,7 @@ object EXUIIACMC {
       .exec(http("XUI${service}_060_StartAppealChecklist")
         .post("/data/case-types/Asylum/validate?pageId=startAppealchecklist")
         .headers(IACHeader.headers_9)
-        .body(StringBody("{\n  \"data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ]\n    }\n  },\n  \"event\": {\n    \"id\": \"startAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ]\n    }\n  }\n}"))
+        .body(StringBody("""{"data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]}},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]}},"event_token":"${event_token}","ignore_warning":false}"""))
         .check(status.is(200))).exitHereIfFailed
 
       .pause(MinThinkTime , MaxThinkTime )
@@ -91,35 +85,49 @@ object EXUIIACMC {
       .exec(http("XUI${service}_070_StartAppealHomeOfficeDecision")
         .post("/data/case-types/Asylum/validate?pageId=startAppealhomeOfficeDecision")
         .headers(IACHeader.headers_homeofficedecision)
-        .body(StringBody("{\n  \"data\": {\n    \"homeOfficeReferenceNumber\": \"123456782\",\n    \"homeOfficeDecisionDate\": \"${currentDate}\"\n  },\n  \"event\": {\n    \"id\": \"startAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ]\n    },\n    \"homeOfficeReferenceNumber\": \"123456782\",\n    \"homeOfficeDecisionDate\": \"${currentDate}\"\n  }\n}"))
+        .body(StringBody("""{"data":{"homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24"},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24"},"event_token":"${event_token}","ignore_warning":false}"""))
         .check(status.in(200, 304)))
 
       .pause(MinThinkTime , MaxThinkTime )
 
       //below is newly added transaction
 
-    .exec(http("XUI${service}_080_StartUpoadNoticeDecision")
-          .post("/data/case-types/Asylum/validate?pageId=startAppealuploadTheNoticeOfDecision")
-          .headers(IACHeader.headers_uploadnotice)
-          .body(StringBody("{\n  \"data\": {\n    \"uploadTheNoticeOfDecisionExplanation\": null\n  },\n  \"event\": {\n    \"id\": \"startAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ]\n    },\n    \"homeOfficeReferenceNumber\": \"123456782\",\n    \"homeOfficeDecisionDate\": \"${currentDate}\",\n    \"uploadTheNoticeOfDecisionExplanation\": null\n  }\n}"))
-          .check(status.in(200, 304)))
+      .exec(http("XUI${service}_080_005_Documents")
+        .post("/documents")
+        .headers(IACHeader.headers_document)
+        .bodyPart(RawFileBodyPart("files", "3MB.pdf")
+          .fileName("3MB.pdf")
+          .transferEncoding("binary"))
+        .asMultipartForm
+        .formParam("classification", "PUBLIC")
+        .check(regex("""http://(.+)/""").saveAs("DMURL"))
+        .check(regex("""internal/documents/(.+?)/binary""").saveAs("Document_ID"))
+        .check(status is (200)))
+
+      .pause(MinThinkTime , MaxThinkTime )
+
+      .exec(http("XUI${service}_080_010_StartUploadNoticeDecision")
+        .post("/data/case-types/Asylum/validate?pageId=startAppealuploadTheNoticeOfDecision")
+        .headers(IACHeader.headers_uploadnotice)
+        .body(StringBody("""{"data":{"uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}]},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}]},"event_token":"${event_token}","ignore_warning":false}"""))
+        .check(status.in(200, 304)))
 
     .pause(MinThinkTime , MaxThinkTime )
 
       .exec(http("XUI${service}_090_StartAppealBasicDetails")
         .post("/data/case-types/Asylum/validate?pageId=startAppealappellantBasicDetails")
         .headers(IACHeader.headers_basicdetails)
-        .body(StringBody("{\n  \"data\": {\n    \"appellantTitle\": \"Mr\",\n    \"appellantGivenNames\": \"appealFname\",\n    \"appellantFamilyName\": \"appealLname\",\n    \"appellantDateOfBirth\": \"1995-08-01\"\n  },\n  \"event\": {\n    \"id\": \"startAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ]\n    },\n    \"homeOfficeReferenceNumber\": \"123456782\",\n    \"homeOfficeDecisionDate\": \"${currentDate}\",\n    \"uploadTheNoticeOfDecisionExplanation\": null,\n    \"appellantTitle\": \"Mr\",\n    \"appellantGivenNames\": \"appealFname\",\n    \"appellantFamilyName\": \"appealLname\",\n    \"appellantDateOfBirth\": \"1995-08-01\"\n  }\n}"))
+        .body(StringBody("""{"data":{"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12"},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12"},"event_token":"${event_token}","ignore_warning":false}"""))
         .check(status.in(200, 304)))
 
       .pause(MinThinkTime , MaxThinkTime )
 
       //below is the new request
-    .exec(http("XUI${service}_100_StartAppealantNationality")
-          .post("/data/case-types/Asylum/validate?pageId=startAppealappellantNationalities")
-          .headers(IACHeader.headers_nationality)
-          .body(StringBody("{\n  \"data\": {\n    \"appellantStateless\": \"hasNationality\",\n    \"appellantNationalities\": [\n      {\n        \"id\": null,\n        \"value\": {\n          \"code\": \"ZW\"\n        }\n      }\n    ]\n  },\n  \"event\": {\n    \"id\": \"startAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ]\n    },\n    \"homeOfficeReferenceNumber\": \"123456782\",\n    \"homeOfficeDecisionDate\": \"${currentDate}\",\n    \"uploadTheNoticeOfDecisionExplanation\": null,\n    \"appellantTitle\": \"Mr\",\n    \"appellantGivenNames\": \"appealFname\",\n    \"appellantFamilyName\": \"appealLname\",\n    \"appellantDateOfBirth\": \"1995-08-01\",\n    \"appellantStateless\": \"hasNationality\",\n    \"appellantNationalities\": [\n      {\n        \"id\": null,\n        \"value\": {\n          \"code\": \"ZW\"\n        }\n      }\n    ]\n  }\n}"))
-          .check(status.in(200, 304)))
+      .exec(http("XUI${service}_100_StartAppealantNationality")
+        .post("/data/case-types/Asylum/validate?pageId=startAppealappellantNationalities")
+        .headers(IACHeader.headers_nationality)
+        .body(StringBody("""{"data":{"appellantStateless":"hasNationality","appellantNationalities":[{"value":{"code":"GB"},"id":null}]},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantNationalities":[{"value":{"code":"GB"},"id":null}]},"event_token":"${event_token}","ignore_warning":false}"""))
+        .check(status.in(200, 304)))
 
     .pause(MinThinkTime , MaxThinkTime )
 
@@ -132,30 +140,29 @@ object EXUIIACMC {
       .exec(http("XUI${service}_120_StartAppealAppellantAddress")
         .post("/data/case-types/Asylum/validate?pageId=startAppealappellantAddress")
         .headers(IACHeader.headers_appelantaddress)
-        .body(StringBody("{\n  \"data\": {\n    \"appellantHasFixedAddress\": \"Yes\",\n    \"appellantAddress\": {\n      \"AddressLine1\": \"10 Hibernia Gardens\",\n      \"AddressLine2\": \"\",\n      \"AddressLine3\": \"\",\n      \"PostTown\": \"Hounslow\",\n      \"County\": \"\",\n      \"PostCode\": \"TW3 3SD\",\n      \"Country\": \"United Kingdom\"\n    }\n  },\n  \"event\": {\n    \"id\": \"startAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ]\n    },\n    \"homeOfficeReferenceNumber\": \"123456782\",\n    \"homeOfficeDecisionDate\": \"${currentDate}\",\n    \"uploadTheNoticeOfDecisionExplanation\": null,\n    \"appellantTitle\": \"Mr\",\n    \"appellantGivenNames\": \"appealFname\",\n    \"appellantFamilyName\": \"appealLname\",\n    \"appellantDateOfBirth\": \"1995-08-01\",\n    \"appellantStateless\": \"hasNationality\",\n    \"appellantNationalities\": [\n      {\n        \"id\": null,\n        \"value\": {\n          \"code\": \"ZW\"\n        }\n      }\n    ],\n    \"appellantHasFixedAddress\": \"Yes\",\n    \"appellantAddress\": {\n      \"AddressLine1\": \"10 Hibernia Gardens\",\n      \"AddressLine2\": \"\",\n      \"AddressLine3\": \"\",\n      \"PostTown\": \"Hounslow\",\n      \"County\": \"\",\n      \"PostCode\": \"TW3 3SD\",\n      \"Country\": \"United Kingdom\"\n    }\n  }\n}"))
+        .body(StringBody("""{"data":{"appellantHasFixedAddress":"Yes","appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"}},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"}},"event_token":"${event_token}","ignore_warning":false}"""))
         .check(status.in(200, 304)))
-
       .pause(MinThinkTime , MaxThinkTime )
 
       .exec(http("XUI${service}_130_AppellantContactPref")
-      .post("/data/case-types/Asylum/validate?pageId=startAppealappellantContactPreference")
-      .headers(IACHeader.headers_contactpref)
-      .body(StringBody("{\n  \"data\": {\n    \"contactPreference\": \"wantsEmail\",\n    \"email\": \"iacpost@mailinator.com\"\n  },\n  \"event\": {\n    \"id\": \"startAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ]\n    },\n    \"homeOfficeReferenceNumber\": \"123456782\",\n    \"homeOfficeDecisionDate\": \"${currentDate}\",\n    \"uploadTheNoticeOfDecisionExplanation\": null,\n    \"appellantTitle\": \"Mr\",\n    \"appellantGivenNames\": \"asasassa\",\n    \"appellantFamilyName\": \"fgfgfgfgfgfgfgfgfgf\",\n    \"appellantDateOfBirth\": \"1995-08-01\",\n    \"appellantStateless\": \"hasNationality\",\n    \"appellantNationalities\": [\n      {\n        \"id\": null,\n        \"value\": {\n          \"code\": \"ZW\"\n        }\n      }\n    ],\n    \"appellantHasFixedAddress\": \"Yes\",\n    \"appellantAddress\": {\n      \"AddressLine1\": \"10 Hibernia Gardens\",\n      \"AddressLine2\": \"\",\n      \"AddressLine3\": \"\",\n      \"PostTown\": \"Hounslow\",\n      \"County\": \"\",\n      \"PostCode\": \"TW3 3SD\",\n      \"Country\": \"United Kingdom\"\n    },\n    \"contactPreference\": \"wantsEmail\",\n    \"email\": \"iacpost@mailinator.com\"\n  }\n}"))
-      .check(status.in(200, 304)))
+        .post("/data/case-types/Asylum/validate?pageId=startAppealappellantContactPreference")
+        .headers(IACHeader.headers_contactpref)
+        .body(StringBody("""{"data":{"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk"},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk"},"event_token":"${event_token}","ignore_warning":false}"""))
+        .check(status.in(200, 304)))
       .pause(MinThinkTime , MaxThinkTime )
 
       .exec(http("XUI${service}_140_StartAppealAppealType")
         .post("/data/case-types/Asylum/validate?pageId=startAppealappealType")
         .headers(IACHeader.headers_appealtype)
-        .body(StringBody("{\n  \"data\": {\n    \"appealType\": \"refusalOfHumanRights\"\n  },\n  \"event\": {\n    \"id\": \"startAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ]\n    },\n    \"homeOfficeReferenceNumber\": \"123456782\",\n    \"homeOfficeDecisionDate\": \"${currentDate}\",\n    \"uploadTheNoticeOfDecisionExplanation\": null,\n    \"appellantTitle\": \"Mr\",\n    \"appellantGivenNames\": \"appealFname\",\n    \"appellantFamilyName\": \"appealLname\",\n    \"appellantDateOfBirth\": \"1995-08-01\",\n    \"appellantStateless\": \"hasNationality\",\n    \"appellantNationalities\": [\n      {\n        \"id\": null,\n        \"value\": {\n          \"code\": \"ZW\"\n        }\n      }\n    ],\n    \"appellantHasFixedAddress\": \"Yes\",\n    \"appellantAddress\": {\n      \"AddressLine1\": \"10 Hibernia Gardens\",\n      \"AddressLine2\": \"\",\n      \"AddressLine3\": \"\",\n      \"PostTown\": \"Hounslow\",\n      \"County\": \"\",\n      \"PostCode\": \"TW3 3SD\",\n      \"Country\": \"United Kingdom\"\n    },\n    \"contactPreference\": \"wantsEmail\",\n    \"email\": \"iacpost@mailinator.com\",\n    \"appealType\": \"refusalOfHumanRights\"\n  }\n}"))
+        .body(StringBody("""{"data":{"appealType":"refusalOfEu"},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk","appealType":"refusalOfEu"},"event_token":"${event_token}","ignore_warning":false}"""))
         .check(status.in(200, 304)))
 
       .pause(MinThinkTime , MaxThinkTime )
 
       .exec(http("XUI${service}_150_StartAppealGroundsRevocation")
-        .post("/data/case-types/Asylum/validate?pageId=startAppealappealGroundsHumanRightsRefusal")
-        .headers(IACHeader.headers_humanrights)
-        .body(StringBody("{\n  \"data\": {\n    \"appealGroundsHumanRightsRefusal\": {\n      \"values\": [\n        \"protectionHumanRights\"\n      ]\n    }\n  },\n  \"event\": {\n    \"id\": \"startAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ]\n    },\n    \"homeOfficeReferenceNumber\": \"123456782\",\n    \"homeOfficeDecisionDate\": \"${currentDate}\",\n    \"uploadTheNoticeOfDecisionExplanation\": null,\n    \"appellantTitle\": \"Mr\",\n    \"appellantGivenNames\": \"appealFname\",\n    \"appellantFamilyName\": \"appealLname\",\n    \"appellantDateOfBirth\": \"1995-08-01\",\n    \"appellantStateless\": \"hasNationality\",\n    \"appellantNationalities\": [\n      {\n        \"id\": null,\n        \"value\": {\n          \"code\": \"ZW\"\n        }\n      }\n    ],\n    \"appellantHasFixedAddress\": \"Yes\",\n    \"appellantAddress\": {\n      \"AddressLine1\": \"10 Hibernia Gardens\",\n      \"AddressLine2\": \"\",\n      \"AddressLine3\": \"\",\n      \"PostTown\": \"Hounslow\",\n      \"County\": \"\",\n      \"PostCode\": \"TW3 3SD\",\n      \"Country\": \"United Kingdom\"\n    },\n    \"contactPreference\": \"wantsEmail\",\n    \"email\": \"iacpost@mailinator.com\",\n    \"appealType\": \"refusalOfHumanRights\",\n    \"appealGroundsHumanRightsRefusal\": {\n      \"values\": [\n        \"protectionHumanRights\"\n      ]\n    }\n  }\n}"))
+        .post("/data/case-types/Asylum/validate?pageId=startAppealappealGroundsEuRefusal")
+        .headers(IACHeader.headers_eurefusal)
+        .body(StringBody("""{"data":{"appealGroundsEuRefusal":{"values":["appealGroundsEuRefusal"]}},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk","appealType":"refusalOfEu","appealGroundsEuRefusal":{"values":["appealGroundsEuRefusal"]}},"event_token":"${event_token}","ignore_warning":false}"""))
         .check(status.in(200, 304)))
 
       .pause(MinThinkTime , MaxThinkTime )
@@ -163,30 +170,30 @@ object EXUIIACMC {
       .exec(http("XUI${service}_160_StartAppealNewMatters")
         .post("/data/case-types/Asylum/validate?pageId=startAppealdeportationOrderPage")
         .headers(IACHeader.headers_orderpage)
-        .body(StringBody("{\n  \"data\": {\n    \"deportationOrderOptions\": \"No\"\n  },\n  \"event\": {\n    \"id\": \"startAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ]\n    },\n    \"homeOfficeReferenceNumber\": \"123456782\",\n    \"homeOfficeDecisionDate\": \"${currentDate}\",\n    \"uploadTheNoticeOfDecisionExplanation\": null,\n    \"appellantTitle\": \"Mr\",\n    \"appellantGivenNames\": \"appealFname\",\n    \"appellantFamilyName\": \"appealLname\",\n    \"appellantDateOfBirth\": \"1995-08-01\",\n    \"appellantStateless\": \"hasNationality\",\n    \"appellantNationalities\": [\n      {\n        \"id\": null,\n        \"value\": {\n          \"code\": \"ZW\"\n        }\n      }\n    ],\n    \"appellantHasFixedAddress\": \"Yes\",\n    \"appellantAddress\": {\n      \"AddressLine1\": \"10 Hibernia Gardens\",\n      \"AddressLine2\": \"\",\n      \"AddressLine3\": \"\",\n      \"PostTown\": \"Hounslow\",\n      \"County\": \"\",\n      \"PostCode\": \"TW3 3SD\",\n      \"Country\": \"United Kingdom\"\n    },\n    \"contactPreference\": \"wantsEmail\",\n    \"email\": \"iacpost@mailinator.com\",\n    \"appealType\": \"refusalOfHumanRights\",\n    \"appealGroundsHumanRightsRefusal\": {\n      \"values\": [\n        \"protectionHumanRights\"\n      ]\n    },\n    \"deportationOrderOptions\": \"No\"\n  }\n}"))
+        .body(StringBody("""{"data":{"deportationOrderOptions":"No"},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk","appealType":"refusalOfEu","appealGroundsEuRefusal":{"values":["appealGroundsEuRefusal"]},"deportationOrderOptions":"No"},"event_token":"${event_token}","ignore_warning":false}"""))
         .check(status.in(200, 304)))
 
       .pause(MinThinkTime , MaxThinkTime )
 
       .exec(http("XUI${service}_170_StartAppealNewMatters")
-            .post("/data/case-types/Asylum/validate?pageId=startAppealnewMatters")
-            .headers(IACHeader.headers_newmatters)
-            .body(StringBody("{\n  \"data\": {\n    \"hasNewMatters\": \"No\"\n  },\n  \"event\": {\n    \"id\": \"startAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ]\n    },\n    \"homeOfficeReferenceNumber\": \"123456782\",\n    \"homeOfficeDecisionDate\": \"${currentDate}\",\n    \"uploadTheNoticeOfDecisionExplanation\": null,\n    \"appellantTitle\": \"Mr\",\n    \"appellantGivenNames\": \"appealFname\",\n    \"appellantFamilyName\": \"appealLname\",\n    \"appellantDateOfBirth\": \"1995-08-01\",\n    \"appellantStateless\": \"hasNationality\",\n    \"appellantNationalities\": [\n      {\n        \"id\": null,\n        \"value\": {\n          \"code\": \"ZW\"\n        }\n      }\n    ],\n    \"appellantHasFixedAddress\": \"Yes\",\n    \"appellantAddress\": {\n      \"AddressLine1\": \"10 Hibernia Gardens\",\n      \"AddressLine2\": \"\",\n      \"AddressLine3\": \"\",\n      \"PostTown\": \"Hounslow\",\n      \"County\": \"\",\n      \"PostCode\": \"TW3 3SD\",\n      \"Country\": \"United Kingdom\"\n    },\n    \"contactPreference\": \"wantsEmail\",\n    \"email\": \"iacpost@mailinator.com\",\n    \"appealType\": \"refusalOfHumanRights\",\n    \"appealGroundsHumanRightsRefusal\": {\n      \"values\": [\n        \"protectionHumanRights\"\n      ]\n    },\n    \"deportationOrderOptions\": \"No\",\n    \"hasNewMatters\": \"No\"\n  }\n}"))
-            .check(status.in(200, 304)))
+        .post("/data/case-types/Asylum/validate?pageId=startAppealnewMatters")
+        .headers(IACHeader.headers_newmatters)
+        .body(StringBody("""{"data":{"hasNewMatters":"No"},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk","appealType":"refusalOfEu","appealGroundsEuRefusal":{"values":["appealGroundsEuRefusal"]},"deportationOrderOptions":"No","hasNewMatters":"No"},"event_token":"${event_token}","ignore_warning":false}"""))
+        .check(status.in(200, 304)))
 
       .pause(MinThinkTime , MaxThinkTime )
 
       .exec(http("XUI${service}_180_StartAppealHasOtherAppeals")
         .post("/data/case-types/Asylum/validate?pageId=startAppealhasOtherAppeals")
         .headers(IACHeader.headers_otherappeals)
-        .body(StringBody("{\n  \"data\": {\n    \"hasOtherAppeals\": \"No\"\n  },\n  \"event\": {\n    \"id\": \"startAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ]\n    },\n    \"homeOfficeReferenceNumber\": \"123456782\",\n    \"homeOfficeDecisionDate\": \"${currentDate}\",\n    \"uploadTheNoticeOfDecisionExplanation\": null,\n    \"appellantTitle\": \"Mr\",\n    \"appellantGivenNames\": \"appealFname\",\n    \"appellantFamilyName\": \"appealLname\",\n    \"appellantDateOfBirth\": \"1995-08-01\",\n    \"appellantStateless\": \"hasNationality\",\n    \"appellantNationalities\": [\n      {\n        \"id\": null,\n        \"value\": {\n          \"code\": \"ZW\"\n        }\n      }\n    ],\n    \"appellantHasFixedAddress\": \"Yes\",\n    \"appellantAddress\": {\n      \"AddressLine1\": \"10 Hibernia Gardens\",\n      \"AddressLine2\": \"\",\n      \"AddressLine3\": \"\",\n      \"PostTown\": \"Hounslow\",\n      \"County\": \"\",\n      \"PostCode\": \"TW3 3SD\",\n      \"Country\": \"United Kingdom\"\n    },\n    \"contactPreference\": \"wantsEmail\",\n    \"email\": \"iacpost@mailinator.com\",\n    \"appealType\": \"refusalOfHumanRights\",\n    \"appealGroundsHumanRightsRefusal\": {\n      \"values\": [\n        \"protectionHumanRights\"\n      ]\n    },\n    \"deportationOrderOptions\": \"No\",\n    \"hasNewMatters\": \"No\",\n    \"hasOtherAppeals\": \"No\"\n  }\n}"))
+        .body(StringBody("""{"data":{"hasOtherAppeals":"No"},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk","appealType":"refusalOfEu","appealGroundsEuRefusal":{"values":["appealGroundsEuRefusal"]},"deportationOrderOptions":"No","hasNewMatters":"No","hasOtherAppeals":"No"},"event_token":"${event_token}","ignore_warning":false}"""))
         .check(status.in(200, 304)))
       .pause(MinThinkTime , MaxThinkTime )
 
       .exec(http("XUI${service}_190_StartAppealLegalRepresentative")
         .post("/data/case-types/Asylum/validate?pageId=startAppeallegalRepresentativeDetails")
         .headers(IACHeader.headers_repdetails)
-        .body(StringBody("{\n  \"data\": {\n    \"legalRepCompany\": \"legalrepC\",\n    \"legalRepName\": \"legalrepName\",\n    \"legalRepReferenceNumber\": \"myref\",\n    \"isFeePaymentEnabled\": null\n  },\n  \"event\": {\n    \"id\": \"startAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ]\n    },\n    \"homeOfficeReferenceNumber\": \"123456782\",\n    \"homeOfficeDecisionDate\": \"${currentDate}\",\n    \"uploadTheNoticeOfDecisionExplanation\": null,\n    \"appellantTitle\": \"Mr\",\n    \"appellantGivenNames\": \"appealFname\",\n    \"appellantFamilyName\": \"appealLname\",\n    \"appellantDateOfBirth\": \"1995-08-01\",\n    \"appellantStateless\": \"hasNationality\",\n    \"appellantNationalities\": [\n      {\n        \"id\": null,\n        \"value\": {\n          \"code\": \"ZW\"\n        }\n      }\n    ],\n    \"appellantHasFixedAddress\": \"Yes\",\n    \"appellantAddress\": {\n      \"AddressLine1\": \"10 Hibernia Gardens\",\n      \"AddressLine2\": \"\",\n      \"AddressLine3\": \"\",\n      \"PostTown\": \"Hounslow\",\n      \"County\": \"\",\n      \"PostCode\": \"TW3 3SD\",\n      \"Country\": \"United Kingdom\"\n    },\n    \"contactPreference\": \"wantsEmail\",\n    \"email\": \"iacpost@mailinator.com\",\n    \"appealType\": \"refusalOfHumanRights\",\n    \"appealGroundsHumanRightsRefusal\": {\n      \"values\": [\n        \"protectionHumanRights\"\n      ]\n    },\n    \"deportationOrderOptions\": \"No\",\n    \"hasNewMatters\": \"No\",\n    \"hasOtherAppeals\": \"No\",\n    \"legalRepCompany\": \"legalrepC\",\n     \"legalRepName\": \"legalrepName\",\n    \"legalRepReferenceNumber\": \"myref\",\n    \"isFeePaymentEnabled\": null\n  }\n}"))
+        .body(StringBody("""{"data":{"legalRepCompany":"Solirius","legalRepName":"John Smith","legalRepReferenceNumber":"abcd","isFeePaymentEnabled":null,"isRemissionsEnabled":null},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk","appealType":"refusalOfEu","appealGroundsEuRefusal":{"values":["appealGroundsEuRefusal"]},"deportationOrderOptions":"No","hasNewMatters":"No","hasOtherAppeals":"No","legalRepCompany":"Solirius","legalRepName":"John Smith","legalRepReferenceNumber":"abcd","isFeePaymentEnabled":null,"isRemissionsEnabled":null},"event_token":"${event_token}","ignore_warning":false}"""))
         .check(status.in(200, 304)))
 
       .exec(http("XUI${service}_200_RepresentativeProfile")
@@ -198,8 +205,8 @@ object EXUIIACMC {
       .exec(http("XUI${service}_210_StartAppealCaseSave")
         .post("/data/case-types/Asylum/cases?ignore-warning=false")
         .headers(IACHeader.headers_casesave)
-        .body(StringBody("{\n  \"data\": {\n    \"checklist\": {\n      \"checklist5\": [\n        \"isResidingInUK\"\n      ],\n      \"checklist1\": [],\n      \"checklist2\": [\n        \"isNotDetained\"\n      ],\n      \"checklist7\": [\n        \"isNotEUDecision\"\n      ],\n      \"checklist3\": [],\n      \"checklist4\": [],\n      \"checklist6\": []\n    },\n    \"homeOfficeReferenceNumber\": \"123456782\",\n    \"homeOfficeDecisionDate\": \"${currentDate}\",\n    \"uploadTheNoticeOfDecisionExplanation\": null,\n    \"appellantTitle\": \"Mr\",\n    \"appellantGivenNames\": \"appealFname\",\n    \"appellantFamilyName\": \"appealLname\",\n    \"appellantDateOfBirth\": \"1995-08-01\",\n    \"appellantStateless\": \"hasNationality\",\n    \"appellantNationalities\": [\n      {\n        \"id\": null,\n        \"value\": {\n          \"code\": \"ZW\"\n        }\n      }\n    ],\n    \"appellantHasFixedAddress\": \"Yes\",\n    \"appellantAddress\": {\n      \"AddressLine1\": \"10 Hibernia Gardens\",\n      \"AddressLine2\": \"\",\n      \"AddressLine3\": \"\",\n      \"PostTown\": \"Hounslow\",\n      \"County\": \"\",\n      \"PostCode\": \"TW3 3SD\",\n      \"Country\": \"United Kingdom\"\n    },\n    \"contactPreference\": \"wantsEmail\",\n    \"email\": \"iacpost@mailinator.com\",\n    \"mobileNumber\": null,\n    \"appealType\": \"refusalOfHumanRights\",\n    \"appealGroundsHumanRightsRefusal\": {\n      \"values\": [\n        \"protectionHumanRights\"\n      ]\n    },\n    \"deportationOrderOptions\": \"No\",\n    \"hasNewMatters\": \"No\",\n    \"newMatters\": null,\n    \"hasOtherAppeals\": \"No\",\n    \"legalRepCompany\": \"legalrepC\",\n    \"legalRepName\": \"legalrepN\",\n    \"legalRepReferenceNumber\": \"myref\",\n    \"isFeePaymentEnabled\": null\n  },\n  \"event\": {\n    \"id\": \"startAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"draft_id\": null\n}"))
-        .check(status.in(200, 304))
+        .body(StringBody("""{"data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk","appealType":"refusalOfEu","appealGroundsEuRefusal":{"values":["appealGroundsEuRefusal"]},"deportationOrderOptions":"No","hasNewMatters":"No","hasOtherAppeals":"No","legalRepCompany":"Solirius","legalRepName":"John Smith","legalRepReferenceNumber":"abcd","isFeePaymentEnabled":null,"isRemissionsEnabled":null},"event":{"id":"startAppeal","summary":"","description":""},"event_token":"${event_token}","ignore_warning":false,"draft_id":null}"""))
+        .check(status.in(201, 304))
         .check(jsonPath("$.id").optional.saveAs("caseId")))
       .pause(MinThinkTime , MaxThinkTime )
 
@@ -257,94 +264,98 @@ object EXUIIACMC {
       .exec(http("XUI${service}_240_005_SubmitAppealDeclaration")
         .post("/data/case-types/Asylum/validate?pageId=submitAppealdeclaration")
         .headers(IACHeader.headers_submitdeclaration)
-        .body(StringBody("{\n  \"data\": {\n    \"legalRepDeclaration\": [\n      \"hasDeclared\"\n    ]\n  },\n  \"event\": {\n    \"id\": \"submitAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token_submit}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"legalRepDeclaration\": [\n      \"hasDeclared\"\n    ]\n  },\n  \"case_reference\": \"${caseId}\"\n}"))
+        .body(StringBody("""{"data":{"legalRepDeclaration":["hasDeclared"]},"event":{"id":"submitAppeal","summary":"","description":""},"event_data":{"legalRepDeclaration":["hasDeclared"]},"event_token":"${event_token_submit}","ignore_warning":false,"case_reference":"${caseId}"}"""))
         .check(status.in(200, 304))
       )
 
-    .exec(http("XUI${service}_240_010_SubmitAppealProfile")
-  .get("/data/internal/profile")
-  .headers(IACHeader.headers_internaldeclaration)
-      .check(status.in(200, 304))
-  )
+      .exec(http("XUI${service}_240_010_SubmitAppealProfile")
+        .get("/data/internal/profile")
+        .headers(IACHeader.headers_internaldeclaration)
+        .check(status.in(200, 304))
+      )
 
       .pause(MinThinkTime , MaxThinkTime )
 
       .exec(http("XUI${service}_250_AppealDeclarationSubmitted")
         .post("/data/cases/${caseId}/events")
         .headers(IACHeader.headers_declarationsubmitted)
-        .body(StringBody("{\n  \"data\": {\n    \"legalRepDeclaration\": [\n      \"hasDeclared\"\n    ]\n  },\n  \"event\": {\n    \"id\": \"submitAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token_submit}\",\n  \"ignore_warning\": false\n}"))
-        .check(status.in(200, 304))
+        .body(StringBody("""{"data":{"legalRepDeclaration":["hasDeclared"]},"event":{"id":"submitAppeal","summary":"","description":""},"event_token":"${event_token_submit}","ignore_warning":false}"""))
+        .check(status.in(201, 304))
       )
       .pause(MinThinkTime , MaxThinkTime )
 
 
-  val StringBodyVJ="{\n  \"data\": {\n    \"orgListOfUsers\": {\n      \"value\": {\n        \"code\": \"${code1}\",\n        \"label\": \"${label1}\"\n      },\n      \"list_items\": [\n        {\n          \"code\": \"${code1}\",\n          \"label\": \"${label1}\"\n        },\n        {\n          \"code\": \"${code2}\",\n          \"label\": \"${label2}\"\n        },\n        {\n          \"code\": \"${code3}\",\n          \"label\": \"${label3}\"\n        },\n        {\n          \"code\": \"${code4}\",\n          \"label\": \"${label4}\"\n        },\n        {\n          \"code\": \"${code5}\",\n          \"label\": \"${label5}\"\n        },\n        {\n          \"code\": \"${code6}\",\n          \"label\": \"${label6}\"\n        }\n      ]\n    }\n  },\n  \"event\": {\n    \"id\": \"shareACase\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token_sharecase}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"orgListOfUsers\": \"${code1}\"\n  },\n  \"case_reference\": \"${caseId}\"\n}"
+  val sharecase =
+    exec(http("XUI${service}_260_005_Cases")
+      .get("/cases")
+      .headers(sharecase_headers_9)
+      .check(status.in(200, 304)))
 
-  val StringBodyVJSubmit="{\n  \"data\": {\n    \"orgListOfUsers\": {\n      \"value\": {\n        \"code\": \"${code}\",\n        \"label\": \"${label}\"\n      },\n      \"list_items\": [\n        {\"code\":\"${code1}\",\"label\":\"${label1}\"},\n        {\"code\":\"${code2}\",\"label\":\"${label2}\"},\n        {\"code\":\"${code3}\",\"label\":\"${label3}\"},\n        {\"code\":\"${code4}\",\"label\":\"${label4}\"},\n        {\"code\":\"${code5}\",\"label\":\"${label5}\"},\n        {\"code\":\"${code6}\",\"label\":\"${label6}\"}\n      ]\n    }\n  },\n  \"event\": {\n    \"id\": \"shareACase\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token_sharecase}\",\n  \"ignore_warning\": false\n}"
+    .exec(http("XUI${service}_260_010_UserDetails")
+      .get("/api/user/details")
+      .headers(sharecase_headers_28)
+      .check(status.in(200, 304)))
 
+    .exec(http("XUI${service}_260_015_TermsAndConditions")
+      .get("/api/configuration?configurationKey=termsAndConditionsEnabled")
+      .headers(sharecase_headers_28)
+      .check(status.in(200, 304)))
 
+    .exec(http("XUI${service}_260_020_Organisation")
+      .get("/api/organisation")
+      .headers(sharecase_headers_28)
+      .check(status.in(200, 304)))
 
-  val shareacase =
-    tryMax(2) {
+    .exec(http("XUI${service}_260_025_AggregatedCaseworkers")
+      .get("/aggregated/caseworkers/:uid/jurisdictions?access=read")
+      .headers(sharecase_headers_50)
+      .check(status.in(200, 304)))
 
-      exec(http("XUI${service}_260_005_StartShareCaseEvent")
-        .get("/data/internal/cases/${caseId}/event-triggers/shareACase?ignore-warning=false")
-        .headers(IACHeader.headers_sharecase1)
-        .check(status.in(200, 304, 302))
-        .check(jsonPath("$..list_items[0].code").optional.saveAs("code1"))
-        .check(jsonPath("$..list_items[0].label").optional.saveAs("label1"))
-        .check(jsonPath("$..list_items[1].code").optional.saveAs("code2"))
-        .check(jsonPath("$..list_items[1].label").optional.saveAs("label2"))
-        .check(jsonPath("$..list_items[2].code").optional.saveAs("code3"))
-        .check(jsonPath("$..list_items[2].label").optional.saveAs("label3"))
-        .check(jsonPath("$..list_items[3].code").optional.saveAs("code4"))
-        .check(jsonPath("$..list_items[3].label").optional.saveAs("label4"))
-        .check(jsonPath("$..list_items[4].code").optional.saveAs("code5"))
-        .check(jsonPath("$..list_items[4].label").optional.saveAs("label5"))
-        .check(jsonPath("$..list_items[5].code").optional.saveAs("code6"))
-        .check(jsonPath("$..list_items[5].label").optional.saveAs("label6"))
-        .check(jsonPath("$..code").find(0).optional.saveAs("code"))
-        .check(jsonPath("$..label").find(2).optional.saveAs("label"))
-        .check(jsonPath("$.event_token").optional.saveAs("event_token_sharecase"))
-      )
-        .exec(http("XUI${service}_260_010_ShareACaseProfile")
-          .get("/data/internal/profile")
-          .headers(IACHeader.headers_di_casedetails)
-          .header("X-XSRF-TOKEN", "${XSRFToken}")
-          .check(status.in(200, 304, 302))
-        )
-    }
-      .pause(MinThinkTime , MaxThinkTime )
+    .exec(http("XUI${service}_260_030_WorkBasketInputs1")
+      .get("/data/internal/case-types/BUND_ASYNC_-1014887449/work-basket-inputs")
+      .headers(sharecase_headers_52)
+      .check(status.in(200, 304)))
 
-      .exec(http("XUI${service}_270_005_ShareACaseValidate")
-        .post("/data/case-types/Asylum/validate?pageId=shareACaseshareACase")
-        .headers(IACHeader.headers_shareacasesubmit)
-        // .body(RawFileBody("RecordedSimulationshareacaseiac_0006_request.txt"))
-        .body(StringBody(StringBodyVJ))
-        // .body(ElFileBody("RecordedSimulationshareacaseiac_0006_request.json")).asJson
-        //.body(StringBody("{\n  \"data\": {\n    \"orgListOfUsers\": {\n      \"value\": {\n   \"code\":,\n  \"event\": {\n    \"id\": \"submitAppeal\",\n    \"summary\": \"\",\n    \"description\": \"\"\n  },\n  \"event_token\": \"${event_token}\",\n  \"ignore_warning\": false,\n  \"event_data\": {\n    \"legalRepDeclaration\": [\n      \"hasDeclared\"\n    ]\n  },\n  \"case_reference\": \"${caseId}\"\n}"))
-        .check(status.in(200,304,302)))
+    .exec(http("XUI${service}_260_035_SearchCases1")
+      .post("/data/internal/searchCases?ctid=BUND_ASYNC_-1014887449&use_case=WORKBASKET&view=WORKBASKET&page=1")
+      .headers(sharecase_headers_57)
+      .check(status.in(200, 304)))
 
-      .exec(http("XUI${service}_270_010_ShareaCaseValidateProfile")
-        .get("/data/internal/profile")
-        .headers(IACHeader.headers_di_shareacase)
-        .check(status.in(200,304,302)))
-      .pause(MinThinkTime , MaxThinkTime)
+    .exec(http("XUI${service}_260_040_WorkBasketInputs2")
+      .get("/data/internal/case-types/Asylum-XUI/work-basket-inputs")
+      .headers(sharecase_headers_52)
+      .check(status.in(200, 304)))
 
+    .exec(http("XUI${service}_260_045_WorkBasketInputs3")
+      .get("/data/internal/case-types/Asylum/work-basket-inputs")
+      .headers(sharecase_headers_52)
+      .check(status.in(200, 304)))
 
-    .exec(http("XUI${service}_280_005_ShareACaseEvents")
-      .post("/data/cases/${caseId}/events")
-      .headers(IACHeader.headers_shareacase12)
-      .body(StringBody(StringBodyVJSubmit))
-      //.body(ElFileBody("RecordedSimulationshareacaseiac_0012_request.json")).asJson
-      .check(status.in(200,304,302)))
+    .exec(http("XUI${service}_260_050_SearchCases2")
+      .post("/data/internal/searchCases?ctid=Asylum&use_case=WORKBASKET&view=WORKBASKET&state=appealSubmitted&page=1")
+      .headers(sharecase_headers_115)
+      .body(StringBody("""{"size":25}"""))
+      .check(status.in(200, 304)))
 
-    .exec(http("XUI${service}_280_010_ShareACaseViewData")
-      .get("/data/internal/cases/${caseId}")
-      .headers(IACHeader.headers_shareacase14)
-      .check(status.in(200,304,302)))
-    .pause(MinThinkTime , MaxThinkTime )
+    .pause(MinThinkTime, MaxThinkTime)
 
+    .exec(http("XUI${service}_270_005_CaseShare1")
+      .get("/api/caseshare/cases?case_ids=${caseId}")
+      .headers(sharecase_headers_28)
+      .check(status.in(200, 304)))
+
+    .exec(http("XUI${service}_260_025_CaseShare2")
+      .get("/api/caseshare/users")
+      .headers(sharecase_headers_28)
+      .check(status.in(200, 304)))
+
+    .pause(MinThinkTime, MaxThinkTime)
+
+    .exec(http("XUI${service}_260_025_CaseShare3")
+      .post("/api/caseshare/case-assignments")
+      .headers(sharecase_headers_227)
+      .body(StringBody("""{"sharedCases":[{"caseId":"${caseId}","caseTitle":"${caseId}","caseTypeId":"Asylum","sharedWith":[{"caseRoles":["[LEGALREPRESENTATIVE]"],"email":"iacaatorg-yw8gz-user0@mailinator.com","firstName":"VUser","idamId":"ec08ccab-453f-4fa8-82cc-eb6507c4fa6f","lastName":"VykUser"}],"pendingShares":[{"email":"iacaatorg-yw8gz-user2@mailinator.com","firstName":"VUser","idamId":"2f463abe-f787-47c7-b14a-45f44bb4a6ce","lastName":"VykUser"}],"pendingUnshares":[]}]}"""))
+      .check(status.in(201, 304)))
 
 
   val findandviewcase =
