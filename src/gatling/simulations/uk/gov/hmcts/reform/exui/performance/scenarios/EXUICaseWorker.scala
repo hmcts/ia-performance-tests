@@ -46,33 +46,28 @@ object EXUICaseWorker {
     )
 
     .exec(http("XUI${service}_050_010_FindCaseSearch")
-          .get("/data/internal/case-types/Asylum/search-inputs")
+          .get("/data/internal/case-types/Asylum-XUI/search-inputs")
           .headers(CaseworkerHeader.headers_read)
           .header("X-XSRF-TOKEN", "${xsrfToken}")
           .check(status.in(200,404))
     )
 
     .exec(http("XUI${service}_050_015_FindCaseSearchMeta")
-          .get("/aggregated/caseworkers/:uid/jurisdictions/IA/case-types/Asylum/cases?view=SEARCH&page=1")
+          .get("/data/internal/case-types/Asylum/search-inputs")
           .headers(CaseworkerHeader.headers_read)
           .header("X-XSRF-TOKEN", "${xsrfToken}")
           .check(status.in(200,404)))
     .pause(10)
-    //submit find a case
 
+    //submit find a case
     .exec(http("XUI${service}_060_FindSearchResults")
-          .post("/data/internal/searchCases?ctid=${caseType}&use_case=WORKBASKET&view=WORKBASKET&page=1")
+          .post("/data/internal/searchCases?ctid=${caseType}&use_case=SEARCH&view=SEARCH&page=1")
           .headers(CaseworkerHeader.headers_2)
           .header("X-XSRF-TOKEN", "${xsrfToken}")
           .body(StringBody("{\n  \"size\": 25\n}"))
           .check(jsonPath("$..case_id").find(0).optional.saveAs("caseNumber"))
           .check(status.in(200,404)))
     .pause(10)
-
-    .exec( session => {
-      println("the case number is  "+session("caseNumber").as[String])
-      session
-    })
 
   val ViewCase = doIf(session => session.contains("caseNumber")) {
       exec(http("XUI${service}_070_005_ViewCase")
