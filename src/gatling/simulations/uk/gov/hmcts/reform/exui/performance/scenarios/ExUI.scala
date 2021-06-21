@@ -24,7 +24,7 @@ object ExUI {
   val baseDomainManageCase = Environment.baseDomain
   val idamAPI=Environment.idamAPI
   val notificationClient=Environment.notificationClient
-  val feeder = csv("userid-increment.csv").circular
+  //val feeder = csv("userid-increment.csv").circular
   val feederuser = csv("OrgDetails.csv").circular
 
   /*
@@ -82,7 +82,7 @@ object ExUI {
                         .header("Content-Type", "application/json")
                         .body(StringBody("{\"email\": \"${generatedEmail}\", \"forename\": \"Vijay\", \"password\": \"Pass19word\", \"surname\": \"Vykuntam\"}"))
                         .check(status is 201))
-                   .pause(20)
+                   .pause(2)
 val createOrg=
   exec(_.setAll(
     ("SRAId", sRAId()),
@@ -103,7 +103,7 @@ val createOrg=
           .header("Content-Type", "application/json")
           .check(jsonPath("$.organisationIdentifier").saveAs("orgRefCode"))
           .check(status in (200,201)))
-    .pause(15)
+    .pause(2)
 
 
 
@@ -187,7 +187,7 @@ val createOrg=
     .exec(getCookieValue(CookieKey("XSRF-TOKEN").withDomain("administer-orgs.perftest.platform.hmcts.net").saveAs("XSRFToken"))
     )
 
-    .pause(30)
+    .pause(2)
 
 
 
@@ -197,12 +197,12 @@ val createOrg=
   exec(http("request_3")
         .get("/auth/isAuthenticated")
     .check(status.in(200,304)))
-      .pause(10)
+      .pause(2)
 
     .exec(http("request_4")
           .get("/auth/isAuthenticated")
       .check(status.in(200,304)))
-          .pause(10)
+          .pause(2)
 
       .exec(http("EXUI_AO_Approve")
       .put(url_approve+"/api/organisations/${orgRefCode}")
@@ -211,7 +211,7 @@ val createOrg=
       .body(ElFileBody("AO.json")).asJson
       .check(status.is(200))
     .check(status.saveAs("aostatusvalue")))
-    .pause(10)
+    .pause(2)
        /* .exec {
       session =>
         val client = new NotificationClient(notificationClient)
@@ -358,14 +358,14 @@ val createOrg=
   feed(Feeders.createDynamicUserDataFeeder).
     exec(http("XUI_CreateSuperUser").post(idamAPI+"/testing-support/accounts").header("Content-Type", "application/json").body(StringBody("{\"email\": \"${orgName}${generatedUserEmail}${n}@mailinator.com\", \"forename\": \"VUser\", \"password\": \"Pass19word\", \"surname\": \"VykUser\"}"))
       .check(status is 201))
-    .pause(20)
+    .pause(2)
           .exec(http("EXUI_MO_005_SendInvitation")
       .post(url_mo + "/api/inviteUser")
       .body(ElFileBody("MO.json")).asJson
       .check(status.is(200))
           .check(status.saveAs("userstatusvalue"))
-      ).exitHereIfFailed
-        .pause(20)
+      )
+        .pause(2)
       /*exec {
 
         session =>

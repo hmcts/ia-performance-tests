@@ -15,7 +15,7 @@ class ExUI extends Simulation {
 	val feedUserDataCaseworker = csv("Caseworkers.csv").circular
 
   val XUIHttpProtocol = Environment.HttpProtocol
-    .proxy(Proxy("proxyout.reform.hmcts.net", 8080).httpsPort(8080))
+    //.proxy(Proxy("proxyout.reform.hmcts.net", 8080).httpsPort(8080))
     .baseUrl(orgurl)
     //.baseUrl("https://ccd-case-management-web-perftest.service.core-compute-perftest.internal")
     .headers(Environment.commonHeader)
@@ -33,21 +33,21 @@ class ExUI extends Simulation {
 	val EXUIScn = scenario("EXUI").repeat(1)
 	 {
 		exec(
-		/*S2SHelper.S2SAuthToken,
+		S2SHelper.S2SAuthToken,
 		ExUI.createSuperUser,
 		ExUI.createOrg,
       ExUI.approveOrgHomePage,
 		ExUI.approveOrganisationlogin,
 			ExUI.approveOrganisationApprove,
-			ExUI.approveOrganisationLogout*/
-			ExUI.manageOrgHomePage,
+			ExUI.approveOrganisationLogout
+			/*ExUI.manageOrgHomePage,
 			ExUI.manageOrganisationLogin,
 			ExUI.usersPage,
 			ExUI.inviteUserPage
-			.repeat(4,"n") {
+			.repeat(260,"n") {
 				exec(ExUI.sendInvitation)
 				},
-			ExUI.manageOrganisationLogout
+			ExUI.manageOrganisationLogout*/
 			)
 	 }
 
@@ -98,4 +98,9 @@ class ExUI extends Simulation {
 		EXUIMCaseCreationIACScn.inject(nothingFor(15),rampUsers(1) during (300)),
 		EXUIMCaseViewIACScn.inject(nothingFor(25),rampUsers(1) during (3))
 	).protocols(IAChttpProtocol)
+
+	/*setUp(
+  EXUIScn.inject(rampUsers(1) during (10))
+	).protocols(XUIHttpProtocol)*/
+
 }
