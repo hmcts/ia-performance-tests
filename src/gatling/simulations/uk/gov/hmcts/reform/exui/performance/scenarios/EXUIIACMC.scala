@@ -2,435 +2,602 @@ package uk.gov.hmcts.reform.exui.performance.scenarios
 
 import java.text.SimpleDateFormat
 import java.util.Date
+
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
-import uk.gov.hmcts.reform.exui.performance.scenarios.utils._
-import uk.gov.hmcts.reform.exui.performance.scenarios.utils.IACHeader._
-
-import scala.util.Random
+import uk.gov.hmcts.reform.exui.performance.scenarios.utils.{Environment, Common, Headers}
 
 object EXUIIACMC {
 
-  val IdamUrl = Environment.idamURL
-  val baseURL=Environment.baseURL
+  val baseURL = Environment.baseURL
 
   val MinThinkTime = Environment.minThinkTimeIACC
   val MaxThinkTime = Environment.maxThinkTimeIACC
-  val MinThinkTimeIACV = Environment.minThinkTimeIACV
-  val MaxThinkTimeIACV = Environment.maxThinkTimeIACV
-
-  private val rng: Random = new Random()
-  private def firstName(): String = rng.alphanumeric.take(10).mkString
-  private def lastName(): String = rng.alphanumeric.take(10).mkString
 
   val sdfDate = new SimpleDateFormat("yyyy-MM-dd")
   val now = new Date()
   val timeStamp = sdfDate.format(now)
 
-  val iaccasecreation=
-    tryMax(2) {
+  /*======================================================================================
+  * IAC Case Creation
+  ======================================================================================*/
 
-      //set the current date as a usable parameter
-      exec(session => session.set("currentDate", timeStamp))
+  val iaccasecreation =
 
-        //set the random variables as usable parameters
-        .exec(
-        _.setAll(
-          ("firstName", firstName()),
-          ("lastName", lastName())
-        ))
-        //when click on create
-        .exec(http("XUI${service}_040_CreateCase")
+    //set session variables
+    exec(_.setAll( "firstName" -> ("Perf" + Common.randomString(5)),
+                    "lastName" -> ("Test" + Common.randomString(5)),
+                    "dobDay" -> Common.getDay(),
+                    "dobMonth" -> Common.getMonth(),
+                    "dobYear" -> Common.getDobYear(),
+                    "currentDate" -> timeStamp,
+                    "orgname" -> "test-org"))
+
+  /*======================================================================================
+  *Business process : Following business process is for IAC Case Creation
+  *Below group contains all the requests are when clicking on create case
+  ======================================================================================*/
+
+    .group("XUI_IAC_040_CreateCase") {
+      exec(http("XUI_IAC_040_CreateCase")
         .get("/aggregated/caseworkers/:uid/jurisdictions?access=create")
-        .headers(IACHeader.headers_createcase)
-        .check(status.in(200, 304))).exitHereIfFailed
+        .headers(Headers.commonHeader)
+        .header("accept", "application/json")
+        // .check(substring("Create Case"))
+        )
+
+      .exec(Common.healthcheck("%2Fcases%2Fcase-create%2FIA%2FAsylum%2FstartAppeal"))
     }
-      .pause(MinThinkTime , MaxThinkTime )
+    
+    .pause(MinThinkTime, MaxThinkTime)
 
-      .exec(http("XUI${service}_050_005_StartCreateCase1")
+  /*======================================================================================
+  *Business process : Following business process is for IAC Case Creation
+  *Below group contains all the requests when starting create case
+  ======================================================================================*/
+      
+    .group("XUI_IAC_050_StartCreateCase1") {
+      exec(http("XUI_IAC_050_005_StartCreateCase1")
         .get("/data/internal/case-types/Asylum/event-triggers/startAppeal?ignore-warning=false")
-        .headers(IACHeader.headers_startcreatecase)
-        .check(status.is(200))
-        .check(bodyString.saveAs("BODY7"))
-        .check(jsonPath("$..event_token").optional.saveAs("event_token")))
-      .exec{
-        session =>
-          println("This is the response body of StartCreateCase1:" + session("BODY7").as[String])
-          session
-      }
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.ui-start-case-trigger.v2+json;charset=UTF-8")
+        .check(jsonPath("$.event_token").saveAs("event_token"))
+        .check(substring("Start your appeal")))
 
-      .exec(http("XUI${service}_050_010_StartCreateCase2")
-      .get("/data/internal/case-types/Asylum/event-triggers/startAppeal?ignore-warning=false")
-      .headers(IACHeader.headers_startcreatecase)
-      .check(status.is(200))
-      //.check(jsonPath("$.event_token").optional.saveAs("event_token"))
-    )
+      .exec(Common.profile)
 
-      .exec(http("XUI${service}_050_015_CaseCreateProfile")
-        .get("/data/internal/profile")
-        .headers(IACHeader.headers_data_internal)
-        .check(status.in(200,304,302)))
+      .exec(Common.healthcheck("%2Fcases%2Fcase-create%2FIA%2FAsylum%2FstartAppeal%2FstartAppealchecklist"))
 
-      .pause(MinThinkTime , MaxThinkTime)
+      .exec(getCookieValue(CookieKey("XSRF-TOKEN").withDomain(Environment.baseDomain).saveAs("XSRFToken")))
+    }
 
+    .pause(MinThinkTime, MaxThinkTime)
 
-      .exec(http("XUI${service}_060_StartAppealChecklist")
+  /*======================================================================================
+  *Business process : Following business process is for IAC Case Creation
+  *Below group contains all the requests for starting appeal checklist
+  ======================================================================================*/
+
+    .group("XUI_IAC_060_StartAppealChecklist") {
+      exec(http("XUI_IAC_060_StartAppealChecklist")
         .post("/data/case-types/Asylum/validate?pageId=startAppealchecklist")
-        .headers(IACHeader.headers_9)
-        .body(StringBody("""{"data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]}},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]}},"event_token":"${event_token}","ignore_warning":false}"""))
-        .check(status.is(200))).exitHereIfFailed
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACStartChecklist.json"))
+        .check(substring("isOutOfCountryEnabled")))
+    }
+    .pause(MinThinkTime, MaxThinkTime)
 
-      .pause(MinThinkTime , MaxThinkTime )
+    .group("XUI_IAC_070_StartAppealOutOfCountry") {
+      exec(http("XUI_IAC_070_StartAppealOutOfCountry")
+        .post("/data/case-types/Asylum/validate?pageId=startAppealoutOfCountry")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACOutOfCountry.json"))
+        .check(substring("appellantInUk")))
+    }
+    .pause(MinThinkTime, MaxThinkTime)
 
-      .exec(http("XUI${service}_070_StartAppealHomeOfficeDecision")
-        .post("/data/case-types/Asylum/validate?pageId=startAppealhomeOfficeDecision")
-        .headers(IACHeader.headers_homeofficedecision)
-        .body(StringBody("""{"data":{"homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24"},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24"},"event_token":"${event_token}","ignore_warning":false}"""))
-        .check(status.in(200, 304)))
+  /*======================================================================================
+  *Business process : Following business process is for IAC Case Creation
+  *Below group contains all the requests for appealing home office decision
+  ======================================================================================*/
 
-      .pause(MinThinkTime , MaxThinkTime )
+    .group("XUI_IAC_080_StartAppealHomeOfficeDecision") {
+      exec(http("XUI_IAC_080_StartAppealHomeOfficeDecision")
+      .post("/data/case-types/Asylum/validate?pageId=startAppealhomeOfficeDecision")
+      .headers(Headers.commonHeader)
+      .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+      .header("x-xsrf-token", "${XSRFToken}")
+      .body(ElFileBody("bodies/iac/IACHomeOfficeDecision.json"))
+      .check(substring("haveHearingAttendeesAndDurationBeenRecorded")))
+    }
+    .pause(MinThinkTime, MaxThinkTime)
 
-      //below is newly added transaction
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+*Below group contains all the requests for uploading notification Decision
+======================================================================================*/
 
-      .exec(http("XUI${service}_080_005_Documents")
-        .post("/documents")
-        .headers(IACHeader.headers_document)
+    .group("XUI_IAC_090_UploadNoticeDecision") {
+      exec(http("XUI_IAC_090_005_UploadNoticeDecision")
+        .post("/documentsv2")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/json, text/plain, */*")
+        .header("content-type", "multipart/form-data")
+        .header("x-xsrf-token", "${XSRFToken}")
         .bodyPart(RawFileBodyPart("files", "3MB.pdf")
-          .fileName("3MB.pdf")
-          .transferEncoding("binary"))
+        .fileName("3MB.pdf")
+        .transferEncoding("binary"))
         .asMultipartForm
         .formParam("classification", "PUBLIC")
-        .check(regex("""http://(.+)/""").saveAs("DMURL"))
-        .check(regex("""internal/documents/(.+?)/binary""").saveAs("Document_ID"))
-        .check(status is (200)))
+        .formParam("caseTypeId", "null")
+        .formParam("jurisdictionId", "null")
+        // .formParam("files", """(binary)""")
+        .check(substring("originalDocumentName"))
+        .check(jsonPath("$.documents[0]._links.self.href").saveAs("DocumentURL"))
+        .check(jsonPath("$.documents[0].hashToken").saveAs("documentHash")))
+    }
 
-      .pause(MinThinkTime , MaxThinkTime )
+    .group("XUI_IAC_090_010_StartUploadNoticeDecision") {
+      exec(http("XUI_IAC_090_010_StartUploadNoticeDecision")
+      .post("/data/case-types/Asylum/validate?pageId=startAppealuploadTheNoticeOfDecision")
+      .headers(Headers.commonHeader)
+      .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+      .header("x-xsrf-token", "${XSRFToken}")
+      .body(ElFileBody("bodies/iac/IACUploadNoticeDecision.json"))
+      .check(substring("uploadTheNoticeOfDecisionDocs")))
+    }
 
-      .exec(http("XUI${service}_080_010_StartUploadNoticeDecision")
-        .post("/data/case-types/Asylum/validate?pageId=startAppealuploadTheNoticeOfDecision")
-        .headers(IACHeader.headers_uploadnotice)
-        .body(StringBody("""{"data":{"uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}]},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}]},"event_token":"${event_token}","ignore_warning":false}"""))
-        .check(status.in(200, 304)))
+    .pause(MinThinkTime, MaxThinkTime)
 
-    .pause(MinThinkTime , MaxThinkTime )
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+*Below group contains all the requests for Appeal Basic Details
+======================================================================================*/
 
-      .exec(http("XUI${service}_090_StartAppealBasicDetails")
+    .group("XUI_IAC_100_StartAppealBasicDetails") {
+      exec(http("XUI_IAC_100_StartAppealBasicDetails")
         .post("/data/case-types/Asylum/validate?pageId=startAppealappellantBasicDetails")
-        .headers(IACHeader.headers_basicdetails)
-        .body(StringBody("""{"data":{"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12"},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12"},"event_token":"${event_token}","ignore_warning":false}"""))
-        .check(status.in(200, 304)))
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACAppellantBasicDetails.json"))
+        .check(substring("appellantGivenNames")))
+    }
 
-      .pause(MinThinkTime , MaxThinkTime )
+    .pause(MinThinkTime, MaxThinkTime)
 
-      //below is the new request
-      .exec(http("XUI${service}_100_StartAppealantNationality")
+ /*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+*Below group contains all the requests for Appealant nationality
+======================================================================================*/
+
+    .group("XUI_IAC_110_StartAppealantNationality") {
+      exec(http("XUI_IAC_110_StartAppealantNationality")
         .post("/data/case-types/Asylum/validate?pageId=startAppealappellantNationalities")
-        .headers(IACHeader.headers_nationality)
-        .body(StringBody("""{"data":{"appellantStateless":"hasNationality","appellantNationalities":[{"value":{"code":"GB"},"id":null}]},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantNationalities":[{"value":{"code":"GB"},"id":null}]},"event_token":"${event_token}","ignore_warning":false}"""))
-        .check(status.in(200, 304)))
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACAppellantNationalities.json"))
+        .check(substring("hasNationality")))
+    }
 
-    .pause(MinThinkTime , MaxThinkTime )
+    .pause(MinThinkTime, MaxThinkTime)
 
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+* Below group contains all the requests for Appealant address search
+======================================================================================*/
+    
+    .exec(Common.postcodeLookup)
 
-      .exec(http("XUI${service}_110_StartAppealDetailsAddressSearch")
-        .get("/api/addresses?postcode=TW33SD")
-        .headers(IACHeader.headers_postcode))
-      .pause(MinThinkTime , MaxThinkTime )
+    .pause(MinThinkTime, MaxThinkTime)
 
-      .exec(http("XUI${service}_120_StartAppealAppellantAddress")
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+* Below group contains all the requests for Appealant address
+======================================================================================*/
+
+    .group("XUI_IAC_130_StartAppealAppellantAddress") {
+      exec(http("XUI_IAC_130_StartAppealAppellantAddress")
         .post("/data/case-types/Asylum/validate?pageId=startAppealappellantAddress")
-        .headers(IACHeader.headers_appelantaddress)
-        .body(StringBody("""{"data":{"appellantHasFixedAddress":"Yes","appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"}},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"}},"event_token":"${event_token}","ignore_warning":false}"""))
-        .check(status.in(200, 304)))
-      .pause(MinThinkTime , MaxThinkTime )
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACAppellantAddress.json"))
+        .check(substring("appellantHasFixedAddress")))
+    }
 
-      .exec(http("XUI${service}_130_AppellantContactPref")
-        .post("/data/case-types/Asylum/validate?pageId=startAppealappellantContactPreference")
-        .headers(IACHeader.headers_contactpref)
-        .body(StringBody("""{"data":{"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk"},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk"},"event_token":"${event_token}","ignore_warning":false}"""))
-        .check(status.in(200, 304)))
-      .pause(MinThinkTime , MaxThinkTime )
+    .pause(MinThinkTime, MaxThinkTime)
 
-      .exec(http("XUI${service}_140_StartAppealAppealType")
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+*Below group contains all the requests for contact preference
+======================================================================================*/
+      
+    .group("XUI_IAC_140_AppellantContactPref") {
+      exec(http("XUI_IAC_140_AppellantContactPref")
+      .post("/data/case-types/Asylum/validate?pageId=startAppealappellantContactPreference")
+      .headers(Headers.commonHeader)
+      .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+      .header("x-xsrf-token", "${XSRFToken}")
+      .body(ElFileBody("bodies/iac/IACContactPreference.json"))
+      .check(substring("contactPreference")))
+    }
+
+    .pause(MinThinkTime, MaxThinkTime)
+
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+*Below group contains all the requests for entering the details of appeal type
+======================================================================================*/
+
+    .group("XUI_IAC_150_StartAppealAppealType") {
+      exec(http("XUI_IAC_150_StartAppealAppealType")
         .post("/data/case-types/Asylum/validate?pageId=startAppealappealType")
-        .headers(IACHeader.headers_appealtype)
-        .body(StringBody("""{"data":{"appealType":"refusalOfEu"},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk","appealType":"refusalOfEu"},"event_token":"${event_token}","ignore_warning":false}"""))
-        .check(status.in(200, 304)))
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACAppealType.json"))
+        .check(substring("appealType")))
+    }
 
-      .pause(MinThinkTime , MaxThinkTime )
+    .pause(MinThinkTime, MaxThinkTime)
 
-      .exec(http("XUI${service}_150_StartAppealGroundsRevocation")
-        .post("/data/case-types/Asylum/validate?pageId=startAppealappealGroundsEuRefusal")
-        .headers(IACHeader.headers_eurefusal)
-        .body(StringBody("""{"data":{"appealGroundsEuRefusal":{"values":["appealGroundsEuRefusal"]}},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk","appealType":"refusalOfEu","appealGroundsEuRefusal":{"values":["appealGroundsEuRefusal"]}},"event_token":"${event_token}","ignore_warning":false}"""))
-        .check(status.in(200, 304)))
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+*Below group contains all the requests for entering the details of ground revocation
+======================================================================================*/
 
-      .pause(MinThinkTime , MaxThinkTime )
+    .group("XUI_IAC_160_StartAppealGroundsRevocation") {
+      exec(http("XUI_IAC_160_StartAppealGroundsRevocation")
+        .post("/data/case-types/Asylum/validate?pageId=startAppealappealGroundsHumanRightsRefusal")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACAppealGrounds.json"))
+        .check(substring("appealGroundsDecisionHumanRightsRefusal")))
+    }
 
-      .exec(http("XUI${service}_160_StartAppealNewMatters")
+    .pause(MinThinkTime, MaxThinkTime)
+
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+*Below group contains all the requests for entering the details of appeal new matters
+======================================================================================*/
+
+    .group("XUI_IAC_170_StartAppealNewMatters") {
+      exec(http("XUI_IAC_170_StartAppealNewMatters")
         .post("/data/case-types/Asylum/validate?pageId=startAppealdeportationOrderPage")
-        .headers(IACHeader.headers_orderpage)
-        .body(StringBody("""{"data":{"deportationOrderOptions":"No"},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk","appealType":"refusalOfEu","appealGroundsEuRefusal":{"values":["appealGroundsEuRefusal"]},"deportationOrderOptions":"No"},"event_token":"${event_token}","ignore_warning":false}"""))
-        .check(status.in(200, 304)))
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACDeportationOrder.json"))
+        .check(substring("deportationOrderOptions")))
+    }
 
-      .pause(MinThinkTime , MaxThinkTime )
+    .pause(MinThinkTime, MaxThinkTime)
 
-      .exec(http("XUI${service}_170_StartAppealNewMatters")
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+*Below group contains all the requests for entering the details of appeal new matters
+======================================================================================*/
+
+    .group("XUI_IAC_180_StartAppealNewMatters") {
+      exec(http("XUI_IAC_180_StartAppealNewMatters")
         .post("/data/case-types/Asylum/validate?pageId=startAppealnewMatters")
-        .headers(IACHeader.headers_newmatters)
-        .body(StringBody("""{"data":{"hasNewMatters":"No"},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk","appealType":"refusalOfEu","appealGroundsEuRefusal":{"values":["appealGroundsEuRefusal"]},"deportationOrderOptions":"No","hasNewMatters":"No"},"event_token":"${event_token}","ignore_warning":false}"""))
-        .check(status.in(200, 304)))
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACNewMatters.json"))
+        .check(substring("hasNewMatters")))
+    }
+    .pause(MinThinkTime, MaxThinkTime)
 
-      .pause(MinThinkTime , MaxThinkTime )
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+*Below group contains all the requests for entering the details if appealant has any other appeals
+======================================================================================*/
 
-      .exec(http("XUI${service}_180_StartAppealHasOtherAppeals")
+    .group("XUI_IAC_190_StartAppealHasOtherAppeals") {
+      exec(http("XUI_IAC_190_StartAppealHasOtherAppeals")
         .post("/data/case-types/Asylum/validate?pageId=startAppealhasOtherAppeals")
-        .headers(IACHeader.headers_otherappeals)
-        .body(StringBody("""{"data":{"hasOtherAppeals":"No"},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk","appealType":"refusalOfEu","appealGroundsEuRefusal":{"values":["appealGroundsEuRefusal"]},"deportationOrderOptions":"No","hasNewMatters":"No","hasOtherAppeals":"No"},"event_token":"${event_token}","ignore_warning":false}"""))
-        .check(status.in(200, 304)))
-      .pause(MinThinkTime , MaxThinkTime )
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACOtherAppeals.json"))
+        .check(substring("hasOtherAppeals")))
+    }
+    .pause(MinThinkTime, MaxThinkTime)
 
-      .exec(http("XUI${service}_190_StartAppealLegalRepresentative")
+/*======================================================================================
+*Business process : Following business process is for IAC  Case Creation
+*Below group contains all the requests for entering the details of appeallant legal representative details
+======================================================================================*/
+
+    .group("XUI_IAC_200_StartAppealLegalRepresentative") {
+      exec(http("XUI_IAC_200_StartAppealLegalRepresentative")
         .post("/data/case-types/Asylum/validate?pageId=startAppeallegalRepresentativeDetails")
-        .headers(IACHeader.headers_repdetails)
-        .body(StringBody("""{"data":{"legalRepCompany":"Solirius","legalRepName":"John Smith","legalRepReferenceNumber":"abcd","isFeePaymentEnabled":null,"isRemissionsEnabled":null},"event":{"id":"startAppeal","summary":"","description":""},"event_data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk","appealType":"refusalOfEu","appealGroundsEuRefusal":{"values":["appealGroundsEuRefusal"]},"deportationOrderOptions":"No","hasNewMatters":"No","hasOtherAppeals":"No","legalRepCompany":"Solirius","legalRepName":"John Smith","legalRepReferenceNumber":"abcd","isFeePaymentEnabled":null,"isRemissionsEnabled":null},"event_token":"${event_token}","ignore_warning":false}"""))
-        .check(status.in(200, 304)))
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACLegalRepresentative.json"))
+        .check(substring("legalRepReferenceNumber")))
 
-      .exec(http("XUI${service}_200_RepresentativeProfile")
-        .get("/data/internal/profile")
-        .headers(IACHeader.headers_repprofile)
-        .check(status.in(200,304,302)))
-      .pause(MinThinkTime , MaxThinkTime )
+      .exec(Common.profile)
+    }
 
-      .exec(http("XUI${service}_210_StartAppealCaseSave")
+    .pause(MinThinkTime, MaxThinkTime)
+
+
+/*======================================================================================
+*Business process : Following business process is for IAC  Case Creation
+*Below group contains all the requests for selecting appeal type and fee
+======================================================================================*/
+
+    .group("XUI_IAC_210_StartAppealFeeDecision") {
+      exec(http("XUI_IAC_210_StartAppealFeeDecision")
+        .post("/data/case-types/Asylum/validate?pageId=startAppealhearingFeeDecision")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACAppealFeeDecision.json"))
+        .check(substring("decisionHearingFeeOption")))
+
+      .exec(Common.profile)
+    }
+
+    .pause(MinThinkTime, MaxThinkTime)
+
+/*======================================================================================
+*Business process : Following business process is for IAC  Case Creation
+*Below group contains all the requests for selecting Remission Type
+======================================================================================*/
+
+    .group("XUI_IAC_220_StartAppealPayByAccount") {
+      exec(http("XUI_IAC_220_StartAppealPayByAccount")
+        .post("/data/case-types/Asylum/validate?pageId=startAppealpaymentOptions")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACAppealPaymentOption.json"))
+        .check(substring("howToPayLabel")))
+
+      .exec(Common.profile)
+    }
+
+    .pause(MinThinkTime, MaxThinkTime)
+
+/*======================================================================================
+*Business process : Following business process is for IAC  Case Creation
+*Below group contains all the requests for selecting Remission Type
+======================================================================================*/
+
+  .group("XUI_IAC_230_StartAppealPaymentType") {
+      exec(http("XUI_IAC_230_StartAppealPaymentType")
+        .post("/data/case-types/Asylum/validate?pageId=startAppealpaymentOptions")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACAppealPaymentOption.json"))
+        .check(substring("howToPayLabel"))
+        // .check(jsonPath("").saveAs("legalRepName"))
+        )
+
+      .exec(Common.profile)
+    }
+
+    .pause(MinThinkTime, MaxThinkTime)
+
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+*Below group contains all the requests for starting appeal case save
+======================================================================================*/
+
+    .group("XUI_IAC_240_005_StartAppealCaseSave") {
+      exec(http("XUI_IAC_240_StartAppealCaseSave")
         .post("/data/case-types/Asylum/cases?ignore-warning=false")
-        .headers(IACHeader.headers_casesave)
-        .body(StringBody("""{"data":{"isOutOfCountryEnabled":"Yes","checklist":{"checklist2":["isNotDetained"],"checklist7":["isNotEUDecision"]},"appellantInUk":"Yes","homeOfficeReferenceNumber":"123456789","homeOfficeDecisionDate":"2021-05-24","uploadTheNoticeOfDecisionDocs":[{"value":{"description":"This is the document","document":{"document_url":"http://${DMURL}/${Document_ID}","document_binary_url":"http://${DMURL}/${Document_ID}/binary","document_filename":"3MB.pdf"}},"id":null}],"appellantTitle":"Mr","appellantGivenNames":"John","appellantFamilyName":"Smith","appellantDateOfBirth":"1990-05-12","appellantStateless":"hasNationality","appellantHasFixedAddress":"Yes","appellantNationalities":[{"value":{"code":"AE"},"id":null}],"appellantAddress":{"AddressLine1":"Ministry Of Justice","AddressLine2":"Seventh Floor 102 Petty France","AddressLine3":"","PostTown":"London","County":"","PostCode":"SW1H 9AJ","Country":"United Kingdom"},"contactPreference":"wantsEmail","email":"iacaatorg-ye32a-user1@mailtest.gov.uk","appealType":"refusalOfEu","appealGroundsEuRefusal":{"values":["appealGroundsEuRefusal"]},"deportationOrderOptions":"No","hasNewMatters":"No","hasOtherAppeals":"No","legalRepCompany":"Solirius","legalRepName":"John Smith","legalRepReferenceNumber":"abcd","isFeePaymentEnabled":null,"isRemissionsEnabled":null},"event":{"id":"startAppeal","summary":"","description":""},"event_token":"${event_token}","ignore_warning":false,"draft_id":null}"""))
-        .check(status.in(201, 304))
-        .check(jsonPath("$.id").optional.saveAs("caseId")))
-      .pause(MinThinkTime , MaxThinkTime )
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.create-case.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACSaveCase.json"))
+        .check(jsonPath("$.id").saveAs("caseId"))
+        .check(substring("appealStarted")))
 
-      .exec(http("XUI${service}_220_005_StartSubmitAppeal")
-        .get("/case/IA/Asylum/${caseId}/trigger/submitAppeal")
-        .headers(IACHeader.headers_submitappeal)
-        .check(status.in(200, 304))
-      )
+      .exec(http("XUI_IAC_240_005_WorkAllocation")
+        .post("/workallocation/searchForCompletable")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/json")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(StringBody("""{"searchRequest":{"ccdId":"${caseId}","eventId":"startAppeal","jurisdiction":"IA","caseTypeId":"Asylum"}}"""))
+        .check(status.in(200, 400))
+        .check(substring("tasks")))
+    }
 
-      .exec(http("XUI${service}_220_010_StartSubmitAppealUI")
-        .get("/external/config/ui")
-        .headers(IACHeader.headers_configui)
-        .check(status.in(200, 304))
-      )
-      .exec(http("XUI${service}_220_015_SubmitAppealTCEnabled1")
-        .get("/api/configuration?configurationKey=termsAndConditionsEnabled")
-        .headers(IACHeader.headers_configui)
-        .check(status.in(200, 304))
-      )
-      .exec(http("XUI${service}_220_020_IsAuthenticated")
-        .get("/auth/isAuthenticated")
-        .headers(IACHeader.headers_configui)
-        .check(status.in(200, 304))
-      )
+    .pause(MinThinkTime, MaxThinkTime)
 
-      .exec(http("XUI${service}_220_025_SaveCaseView")
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+*Below group contains all the requests for starting start submit appeal
+======================================================================================*/
+
+    .group("XUI_IAC_250_005_StartSubmitAppeal") {
+      exec(http("XUI_IAC_250_005_StartSubmitAppeal")
+        .get("/case/IA/Asylum/${caseId}/trigger/payAndSubmitAppeal")
+        .headers(Headers.navigationHeader)
+        .check(substring("HMCTS Manage")))
+
+      .exec(Common.configurationui)
+
+      .exec(Common.configUI)
+
+      .exec(Common.TsAndCs)
+
+      .exec(Common.userDetails)
+
+      .exec(Common.isAuthenticated)
+
+      .exec(Common.healthcheck("%2Fcases%2Fcase-details%2F${caseId}%2Ftrigger%2FpayAndSubmitAppeal"))
+
+      .exec(http("XUI_IAC_250_035_SaveCaseView")
         .get("/data/internal/cases/${caseId}")
-        .headers(IACHeader.headers_caseview)
-        .check(status.in(200,304,302)))
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.ui-case-view.v2+json")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .check(substring("Create")))
+    }
 
-      .pause(MinThinkTime , MaxThinkTime )
-
-      .exec(http("XUI${service}_230_005_SubmitAppeal")
-        .get("/data/internal/cases/${caseId}/event-triggers/submitAppeal?ignore-warning=false")
-        .headers(IACHeader.headers_newsubmitappeal)
-        .check(status.in(200, 304))
-        .check(jsonPath("$.event_token").optional.saveAs("event_token_submit")))
-
-      .exec(http("XUI${service}_230_010_IsAuthenticated")
-        .get("/auth/isAuthenticated")
-        .headers(IACHeader.headers_isauthenticatedsubmit)
-        .check(status.in(200,304,302)))
-
-      .exec(http("XUI${service}_230_015_UserDetails")
-            .get("/api/user/details")
-            .headers(IACHeader.headers_isauthenticatedsubmit)
-            .check(status.in(200,304,302)))
-
-      .exec(http("XUI${service}_230_020_DataInternalProfile")
-            .get("/data/internal/profile")
-            .headers(IACHeader.headers_internalprofiledatasubmit)
-            .check(status.in(200,304,302)))
-      .pause(MinThinkTime , MaxThinkTime )
-
-      .exec(http("XUI${service}_240_005_SubmitAppealDeclaration")
-        .post("/data/case-types/Asylum/validate?pageId=submitAppealdeclaration")
-        .headers(IACHeader.headers_submitdeclaration)
-        .body(StringBody("""{"data":{"legalRepDeclaration":["hasDeclared"]},"event":{"id":"submitAppeal","summary":"","description":""},"event_data":{"legalRepDeclaration":["hasDeclared"]},"event_token":"${event_token_submit}","ignore_warning":false,"case_reference":"${caseId}"}"""))
-        .check(status.in(200, 304))
-      )
-
-      .exec(http("XUI${service}_240_010_SubmitAppealProfile")
-        .get("/data/internal/profile")
-        .headers(IACHeader.headers_internaldeclaration)
-        .check(status.in(200, 304))
-      )
-
-      .pause(MinThinkTime , MaxThinkTime )
-
-      .exec(http("XUI${service}_250_AppealDeclarationSubmitted")
-        .post("/data/cases/${caseId}/events")
-        .headers(IACHeader.headers_declarationsubmitted)
-        .body(StringBody("""{"data":{"legalRepDeclaration":["hasDeclared"]},"event":{"id":"submitAppeal","summary":"","description":""},"event_token":"${event_token_submit}","ignore_warning":false}"""))
-        .check(status.in(201, 304))
-      )
-      .pause(MinThinkTime , MaxThinkTime )
-
-
-  val sharecase =
-    exec(http("XUI${service}_260_005_Cases")
-      .get("/cases")
-      .headers(sharecase_headers_9)
-      .check(status.in(200, 304)))
-
-    .exec(http("XUI${service}_260_010_UserDetails")
-      .get("/api/user/details")
-      .headers(sharecase_headers_28)
-      .check(status.in(200, 304)))
-
-    .exec(http("XUI${service}_260_015_TermsAndConditions")
-      .get("/api/configuration?configurationKey=termsAndConditionsEnabled")
-      .headers(sharecase_headers_28)
-      .check(status.in(200, 304)))
-
-    .exec(http("XUI${service}_260_020_Organisation")
-      .get("/api/organisation")
-      .headers(sharecase_headers_28)
-      .check(status.in(200, 304)))
-
-    .exec(http("XUI${service}_260_025_AggregatedCaseworkers")
-      .get("/aggregated/caseworkers/:uid/jurisdictions?access=read")
-      .headers(sharecase_headers_50)
-      .check(status.in(200, 304)))
-
-    .exec(http("XUI${service}_260_030_WorkBasketInputs1")
-      .get("/data/internal/case-types/BUND_ASYNC_-1014887449/work-basket-inputs")
-      .headers(sharecase_headers_52)
-      .check(status.in(200, 304)))
-
-    .exec(http("XUI${service}_260_035_SearchCases1")
-      .post("/data/internal/searchCases?ctid=BUND_ASYNC_-1014887449&use_case=WORKBASKET&view=WORKBASKET&page=1")
-      .headers(sharecase_headers_57)
-      .check(status.in(200, 304)))
-
-    .exec(http("XUI${service}_260_040_WorkBasketInputs2")
-      .get("/data/internal/case-types/Asylum-XUI/work-basket-inputs")
-      .headers(sharecase_headers_52)
-      .check(status.in(200, 304)))
-
-    .exec(http("XUI${service}_260_045_WorkBasketInputs3")
-      .get("/data/internal/case-types/Asylum/work-basket-inputs")
-      .headers(sharecase_headers_52)
-      .check(status.in(200, 304)))
-
-    .exec(http("XUI${service}_260_050_SearchCases2")
-      .post("/data/internal/searchCases?ctid=Asylum&use_case=WORKBASKET&view=WORKBASKET&state=appealSubmitted&page=1")
-      .headers(sharecase_headers_115)
-      .body(StringBody("""{"size":25}"""))
-      .check(status.in(200, 304)))
+    .exec(Common.caseActivityGet)
+    .pause(2)
+    .exec(Common.caseActivityPost)
 
     .pause(MinThinkTime, MaxThinkTime)
 
-    .exec(http("XUI${service}_270_005_CaseShare1")
-      .get("/api/caseshare/cases?case_ids=${caseId}")
-      .headers(sharecase_headers_28)
-      .check(status.in(200, 304)))
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+*Below group contains all the requests for starting submit appeal
+======================================================================================*/
 
-    .exec(http("XUI${service}_260_025_CaseShare2")
-      .get("/api/caseshare/users")
-      .headers(sharecase_headers_28)
-      .check(status.in(200, 304)))
+    .group("XUI_IAC_260_PayAndSubmitAppeal") {
+      exec(http("XUI_IAC_260_005_PayAndSubmitAppeal")
+      .get("/data/internal/cases/${caseId}/event-triggers/payAndSubmitAppeal?ignore-warning=false")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.ui-start-event-trigger.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .check(jsonPath("$.event_token").saveAs("event_token_submit"))
+        .check(substring("Pay and submit")))
 
-    .pause(MinThinkTime, MaxThinkTime)
+      .exec(Common.isAuthenticated)
 
-    .exec(http("XUI${service}_260_025_CaseShare3")
-      .post("/api/caseshare/case-assignments")
-      .headers(sharecase_headers_227)
-      .body(StringBody("""{"sharedCases":[{"caseId":"${caseId}","caseTitle":"${caseId}","caseTypeId":"Asylum","sharedWith":[{"caseRoles":["[LEGALREPRESENTATIVE]"],"email":"iacaatorg-yw8gz-user0@mailinator.com","firstName":"VUser","idamId":"ec08ccab-453f-4fa8-82cc-eb6507c4fa6f","lastName":"VykUser"}],"pendingShares":[{"email":"iacaatorg-yw8gz-user2@mailinator.com","firstName":"VUser","idamId":"2f463abe-f787-47c7-b14a-45f44bb4a6ce","lastName":"VykUser"}],"pendingUnshares":[]}]}"""))
-      .check(status.in(201, 304)))
+      .exec(Common.userDetails)
 
+      .exec(Common.profile)
 
-  val findandviewcase =
+      .exec(Common.healthcheck("%2Fcases%2Fcase-details%2F${caseId}%2Ftrigger%2FsubmitAppeal%2FsubmitAppealdeclaration"))
 
-    exec(http("XUI${service}_040_005_SearchPage")
-         .get("/aggregated/caseworkers/:uid/jurisdictions?access=read")
-         .headers(IACHeader.headers_search)
-      .header("X-XSRF-TOKEN", "${XSRFToken}")
-    )
-
-      .exec(http("XUI${service}_040_010_SearchPage")
-			.get("/data/internal/case-types/Asylum/search-inputs")
-			.headers(IACHeader.headers_searchinputs)
-        .header("X-XSRF-TOKEN", "${XSRFToken}")
-      )
-
-
-    .exec(http("XUI${service}_040_015_SearchPaginationMetaData")
-			.get("/aggregated/caseworkers/:uid/jurisdictions/IA/case-types/Asylum/cases?view=SEARCH&page=1&case.searchPostcode=TW3%203SD")
-			.headers(IACHeader.headers_search)
-      .header("X-XSRF-TOKEN", "${XSRFToken}"))
-
-      .pause(MinThinkTimeIACV,MaxThinkTimeIACV)
-
-    .exec(http("XUI${service}_040_020_SearchResults")
-			.post("/data/internal/searchCases?ctid=Asylum&use_case=SEARCH&view=SEARCH&page=1&case.searchPostcode=TW3%203SD")
-			.headers(IACHeader.headers_searchresults)
-      .header("X-XSRF-TOKEN", "${XSRFToken}")
-      .body(StringBody("{\n  \"size\": 25\n}"))
-     // .check(jsonPath("$..case_id").findAll.optional.saveAs("caseNumbers")))
-          .check(jsonPath("$..case_id").findAll.optional.saveAs("caseNumbers")))
-
-    /*  .exec(http("XUI${service}_040_025_SearchPage")
-            .get("/data/internal/case-types/Asylum/search-inputs")
-            .headers(IACHeader.headers_searchinputs)
-            .header("X-XSRF-TOKEN", "${XSRFToken}")
-      )*/
-
-        .pause(MinThinkTimeIACV,MaxThinkTimeIACV)
-
-        //.foreach("${caseNumbers}","caseNumber") {
-              .exec(http("XUI${service}_050_CaseDetails")
-            .get("/data/internal/cases/${caseNumber}")
-            .headers(IACHeader.headers_data_internal_cases)
-            .header("X-XSRF-TOKEN", "${XSRFToken}")
-            .check(regex("""internal/documents/(.+?)","document_filename""").find(0).optional.saveAs("Document_ID"))
-            .check(status.is(200)))
-
-            .pause(MinThinkTimeIACV,MaxThinkTimeIACV)
-
-        .exec(http("XUI${service}_060_005_ViewCaseDocumentUI")
-          .get("/external/config/ui")
-          .headers(IACHeader.headers_documents)
-          .header("X-XSRF-TOKEN", "${XSRFToken}")
-        )
-
-        .exec(http("XUI${service}_060_010_ViewCaseDocumentT&C")
-          .get("/api/configuration?configurationKey=termsAndConditionsEnabled")
-          .headers(IACHeader.headers_documents)
-          .header("X-XSRF-TOKEN", "${XSRFToken}")
-        )
-      .doIf(session => session.contains("Document_ID")) {
-      exec(http("XUI${service}_060_015_ViewCaseDocumentAnnotations")
-        .get("/em-anno/annotation-sets/filter?documentId=${Document_ID}")
-        .headers(IACHeader.headers_documents)
-        .header("X-XSRF-TOKEN", "${XSRFToken}")
-        .check(status.in(200, 404, 304)))
-        .exec(http("XUI${service}_060_020_ViewCaseDocumentBinary")
-          .get("/documents/${Document_ID}/binary")
-          .headers(IACHeader.headers_documents)
-          .header("X-XSRF-TOKEN", "${XSRFToken}")
-          .check(status.in(200, 404, 304)))
-        .pause(MinThinkTimeIACV, MaxThinkTimeIACV)
+      .exec(Common.caseActivityGet)
+      .pause(2)
+      .exec(Common.caseActivityPost)
 
     }
-    //  }
+    .pause(MinThinkTime, MaxThinkTime)
+
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+*Below group contains all the requests for selecting PBA account and clicking continue
+======================================================================================*/
+
+    .group("XUI_IAC_270_SelectPBAAccount") {
+      exec(http("XUI_IAC_270_005_SelectPBAAccount")
+        .post("/data/case-types/Asylum/validate?pageId=payAndSubmitAppealenterPbaNumber")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACPBAAccountSelect.json"))
+        .check(substring("paymentAccountList")))
+
+      .exec(Common.profile)
+
+      .exec(Common.healthcheck("%2Fcases%2Fcase-details%2F${caseId}%2Ftrigger%2FsubmitAppeal%2FpayAndSubmitAppealdeclaration"))
+
+      .exec(Common.caseActivityGet)
+      .pause(2)
+      .exec(Common.caseActivityPost)
+      
+    }
+
+    .pause(MinThinkTime, MaxThinkTime)
+
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+* Below group contains all the requests for confirmation statement and clicking continue
+======================================================================================*/
+
+  .group("XUI_IAC_280_ConfirmDeclaration") {
+      exec(http("XUI_IAC_280_005_ConfirmDeclaration")
+        .post("/data/case-types/Asylum/validate?pageId=payAndSubmitAppealdeclaration")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.case-data-validate.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACAppealDeclaration.json"))
+        .check(substring("hasDeclared")))
+
+      .exec(Common.profile)
+
+      .exec(Common.healthcheck("%2Fcases%2Fcase-details%2F${caseId}%2Ftrigger%2FspayAndSubmitAppeal%2Fsubmit"))
+  }
+
+/*======================================================================================
+*Business process : Following business process is for IAC Case Creation
+* Below group contains all the requests for starting submit appeal declaration submitted
+======================================================================================*/
+
+    .group("XUI_IAC_290_005_AppealDeclarationSubmitted") {
+      exec(http("XUI_IAC_290_AppealDeclarationSubmitted")
+        .post("/data/cases/${caseId}/events")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.create-event.v2+json;charset=UTF-8")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(ElFileBody("bodies/iac/IACSubmitAppeal.json"))
+        .check(substring("hasDeclared")))
+
+      .exec(http("XUI_IAC_290_010_WorkAllocation")
+        .post("/workallocation/searchForCompletable")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/json")
+        .header("x-xsrf-token", "${XSRFToken}")
+        .body(StringBody("""{"searchRequest":{"ccdId":"${caseId}","eventId":"submitAppeal","jurisdiction":"IA","caseTypeId":"Asylum"}}"""))
+        .check(status.in(200, 400))
+        .check(substring("tasks")))
+
+      .exec(Common.healthcheck("%2Fcases%2Fcase-details%2F${caseId}%2Ftrigger%2FpayAndSubmitAppeal%2Fconfirm"))
+    }
+
+    .exec(Common.caseActivityGet)
+    .pause(2)
+    .exec(Common.caseActivityPost)
+
+    .pause(MinThinkTime, MaxThinkTime)
+
+/*====================================================================================
+* IAC share a case
+====================================================================================*/
+
+  val shareacase =
+
+    group("XUI_IAC_300_ShareACase") {
+      exec(http("XUI_IAC_300_005_ShareACase")
+        .get("/api/caseshare/cases?case_ids=${caseId}")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/json, text/plain, */*")
+        .check(jsonPath("$..email").find(0).saveAs("user0"))
+        .check(jsonPath("$..firstName").find(0).saveAs("firstName"))
+        .check(jsonPath("$..lastName").find(0).saveAs("lastName"))
+        .check(jsonPath("$..idamId").find(0).saveAs("idamId")))
+    
+      .exec(http("XUI_IAC_300_010_ShareACaseUsers")
+        .get("/api/caseshare/users")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/json, text/plain, */*")
+        .check(jsonPath("$..email").find(0).saveAs("user1"))
+        .check(jsonPath("$..firstName").find(0).saveAs("firstName1"))
+        .check(jsonPath("$..lastName").find(0).saveAs("lastName1"))
+        .check(jsonPath("$..idamId").find(0).saveAs("idamId1")))
+    }
+
+    .pause(MinThinkTime , MaxThinkTime)
+
+    .group("XUI_IAC_310_ShareACaseConfirm") {
+      exec(http("XUI_IAC_310_ShareACaseAssignments")
+        .post("/api/caseshare/case-assignments")
+        .headers(Headers.commonHeader)
+        .header("accept", "application/json, text/plain, */*")
+        .body(ElFileBody("bodies/iac/IACShareACase.json")))
+    }
+
+    .pause(MinThinkTime , MaxThinkTime )
 
 }
