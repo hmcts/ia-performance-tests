@@ -67,7 +67,7 @@ class ExUI extends Simulation {
 		//	.exec(EXUIMCLogin.termsnconditions)
 		  	.repeat(1) {
 					exec(EXUIIACMC.iaccasecreation)
-						.exec(EXUIIACMC.sharecase)
+						.exec(EXUIIACMC.shareacase)
 				}
 
 		.exec(EXUIMCLogin.manageCase_Logout)
@@ -100,8 +100,8 @@ class ExUI extends Simulation {
   }
 	setUp(
 
-		EXUIMCaseCaseworkerScn.inject(rampUsers(10) during (300)),
-		EXUIMCaseCreationIACScn.inject(rampUsers(10) during (300))
+		// EXUIMCaseCaseworkerScn.inject(rampUsers(10) during (300)),
+		EXUIMCaseCreationIACScn.inject(rampUsers(10) during (180))
 	).protocols(IAChttpProtocol)
 	 .assertions(global.successfulRequests.percent.gte(95))
 	 .assertions(forAll.successfulRequests.percent.gte(90))

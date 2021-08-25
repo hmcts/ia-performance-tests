@@ -67,8 +67,8 @@ dependencies {
 }
 
 gatling {
-    toolVersion '3.1.1'
-    scalaVersion '2.12.8'
+    toolVersion '3.3.1'
+    scalaVersion '2.12.12'
     simulations = [ 'uk.gov.hmcts.reform.exui.performance.simulations.ExUI'
     ]
 }
