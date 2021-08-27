@@ -535,8 +535,8 @@ object EXUIIACMC {
 * Below group contains all the requests for starting submit appeal declaration submitted
 ======================================================================================*/
 
-    .group("XUI_IAC_290_005_AppealDeclarationSubmitted") {
-      exec(http("XUI_IAC_290_AppealDeclarationSubmitted")
+    .group("XUI_IAC_290_AppealDeclarationSubmitted") {
+      exec(http("XUI_IAC_290_005_AppealDeclarationSubmitted")
         .post("/data/cases/${caseId}/events")
         .headers(Headers.commonHeader)
         .header("accept", "application/vnd.uk.gov.hmcts.ccd-data-store-api.create-event.v2+json;charset=UTF-8")
