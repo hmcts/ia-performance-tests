@@ -273,7 +273,8 @@ object EXUIMCLogin {
 
       .exec(http("XUI${service}_020_035_GetWorkBasketInputs")
             .get("/data/internal/case-types/FinancialRemedyMVP2/work-basket-inputs")
-            .headers(LoginHeader.headers_17))
+            .headers(LoginHeader.headers_17)
+            .check(status.in(200, 404)))
       //.exec(getCookieValue(CookieKey("__auth__").withDomain(baseDomain).saveAs("authToken")))
       /*.exec(getCookieValue(CookieKey("XSRF-TOKEN").withDomain("manage-case.perftest.platform.hmcts.net").saveAs("XSRFToken")))*/
       /*.exec( session => {
