@@ -64,11 +64,9 @@ class ExUI extends Simulation {
 	  	feed(feedUserDataIAC).feed(Feeders.IACCreateDataFeeder)
 	  	.exec(EXUIMCLogin.manageCasesHomePage)
 			.exec(EXUIMCLogin.manageCaseslogin)
-		//	.exec(EXUIMCLogin.termsnconditions)
-		  	.repeat(1) {
-					exec(EXUIIACMC.iaccasecreation)
-						.exec(EXUIIACMC.shareacase)
-				}
+			//.exec(EXUIMCLogin.termsnconditions)
+			.exec(EXUIIACMC.iaccasecreation)
+			//.exec(EXUIIACMC.shareacase)
 
 		.exec(EXUIMCLogin.manageCase_Logout)
 	}
